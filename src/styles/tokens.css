@@ -1,0 +1,164 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700;800&family=Inter+Tight:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Base surfaces */
+  --bg-void:        #07090f;
+  --bg-surface:     #0c101c;
+  --bg-card:        #0f1826;
+  --bg-card-2:      #131c2e;
+  --bg-elevated:    #1a2238;
+  --bg-overlay:     rgba(7, 9, 15, 0.85);
+
+  /* Borders */
+  --line-1:         rgba(255, 255, 255, 0.06);
+  --line-2:         rgba(255, 255, 255, 0.12);
+  --line-3:         rgba(255, 255, 255, 0.18);
+  --line-dim:       #1e2d4a;
+  --line-mid:       #253450;
+
+  /* Foreground */
+  --fg-1:           #e2e8f0;
+  --fg-2:           #cbd5e1;
+  --fg-3:           #94a3b8;
+  --fg-4:           #64748b;
+  --fg-5:           #475569;
+  --fg-disabled:    #334155;
+
+  /* Accents */
+  --accent-blue:        #7b9fff;
+  --accent-blue-soft:   #9db5ff;
+  --accent-blue-tint:   #0d1830;
+  --accent-blue-edge:   #2a4080;
+  --accent-blue-glow:   rgba(123, 159, 255, 0.45);
+
+  --accent-violet:      #a78bfa;
+  --accent-violet-tint: #130d1a;
+  --accent-violet-edge: #2d1a3d;
+  --accent-violet-glow: rgba(167, 139, 250, 0.45);
+
+  --accent-mint:        #34d399;
+  --accent-mint-tint:   #0b1a12;
+  --accent-mint-edge:   #1a3d2a;
+  --accent-mint-glow:   rgba(52, 211, 153, 0.45);
+
+  --accent-green:       #4ade80;
+  --accent-green-tint:  #0f1a0f;
+  --accent-green-edge:  #1a3d1a;
+
+  --accent-pink:        #f472b6;
+  --accent-pink-tint:   #1a0d18;
+  --accent-pink-edge:   #3d1a30;
+  --accent-pink-glow:   rgba(244, 114, 182, 0.45);
+
+  --accent-coral:       #f87171;
+  --accent-coral-tint:  #1a0f0f;
+  --accent-coral-edge:  #3d1a1a;
+  --accent-coral-glow:  rgba(248, 113, 113, 0.45);
+
+  --accent-amber:       #fbbf24;
+  --accent-amber-tint:  #1a1408;
+  --accent-amber-edge:  #3d2f10;
+  --accent-amber-glow:  rgba(251, 191, 36, 0.45);
+
+  /* Semantic */
+  --primary:        var(--accent-blue);
+  --success:        var(--accent-mint);
+  --warning:        var(--accent-amber);
+  --danger:         var(--accent-coral);
+
+  /* Brand gradients */
+  --grad-brand: linear-gradient(90deg, #7b9fff 0%, #b08cff 100%);
+  --grad-flow:  linear-gradient(90deg, #7b9fff 0%, #a78bfa 50%, #f472b6 100%);
+
+  /* Typography */
+  --font-sans:    'DM Sans', 'Inter Tight', system-ui, sans-serif;
+  --font-mono:    'Space Mono', ui-monospace, monospace;
+  --font-display: 'DM Sans', sans-serif;
+
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semi:     600;
+  --fw-bold:     700;
+  --fw-black:    800;
+
+  --t-display:   56px;
+  --t-h1:        40px;
+  --t-h2:        28px;
+  --t-h3:        20px;
+  --t-h4:        16px;
+  --t-body:      14px;
+  --t-small:     13px;
+  --t-caption:   12px;
+  --t-micro:     11px;
+  --t-tag:       10px;
+
+  --lh-tight:    1.08;
+  --lh-snug:     1.25;
+  --lh-normal:   1.45;
+  --lh-relaxed:  1.6;
+
+  --tracking-tight:  -0.04em;
+  --tracking-snug:   -0.02em;
+  --tracking-normal: 0;
+  --tracking-mono:   0.02em;
+  --tracking-tag:    0.08em;
+
+  /* Spacing */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-7:  32px;
+  --space-8:  40px;
+
+  /* Radii */
+  --r-1:  4px;
+  --r-2:  6px;
+  --r-3:  8px;
+  --r-4:  10px;
+  --r-5:  12px;
+  --r-pill: 999px;
+
+  /* Shadows */
+  --shadow-1:  0 4px 12px rgba(0,0,0,0.4);
+  --shadow-2:  0 8px 24px rgba(0,0,0,0.5);
+
+  /* Glow */
+  --glow-blue:   0 0 0 1px rgba(123,159,255,0.4), 0 0 24px rgba(123,159,255,0.25);
+  --glow-violet: 0 0 0 1px rgba(167,139,250,0.4), 0 0 24px rgba(167,139,250,0.25);
+  --glow-mint:   0 0 0 1px rgba(52,211,153,0.4),  0 0 24px rgba(52,211,153,0.25);
+  --glow-pink:   0 0 0 1px rgba(244,114,182,0.4), 0 0 24px rgba(244,114,182,0.25);
+
+  /* Motion */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast:    160ms;
+  --dur-base:    240ms;
+  --dur-slow:    400ms;
+
+  /* Canvas */
+  --canvas-grid:   rgba(123, 159, 255, 0.04);
+  --grid-size:     48px;
+
+  /* Layout */
+  --topbar-h:    52px;
+  --bottombar-h: 62px;
+  --sidebar-w:   100px;
+  --inspector-w: 284px;
+}
+
+/* Node entrance animation */
+@keyframes node-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Flow particle animation */
+@keyframes vz-flow {
+  0%   { offset-distance: 0%;   opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
