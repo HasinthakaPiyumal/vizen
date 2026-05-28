@@ -175,6 +175,26 @@ export function TopBar({ presenting, onPresent }: Props) {
   const [showAiAssist, setShowAiAssist] = useState(false);
   const [recordingProgress, setRecordingProgress] = useState<number | null>(null);
 
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isTitleOverflowing, setIsTitleOverflowing] = useState(false);
+  const titleContainerRef = useRef<HTMLDivElement>(null);
+  const titleTextRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = titleContainerRef.current;
+    const text = titleTextRef.current;
+    if (container && text) {
+      const overflow = text.scrollWidth - container.clientWidth;
+      if (overflow > 0) {
+        setIsTitleOverflowing(true);
+        text.style.setProperty('--scroll-dist', `-${overflow}px`);
+      } else {
+        setIsTitleOverflowing(false);
+        text.style.removeProperty('--scroll-dist');
+      }
+    }
+  }, [title, isEditingTitle]);
+
   const getSvgEl = () => document.getElementById('vizen-svg-canvas') as SVGSVGElement | null;
 
   const handleExportPNG = () => {
@@ -283,14 +303,39 @@ export function TopBar({ presenting, onPresent }: Props) {
         <div className="tb-div"/>
         <VizenWordmark size={15}/>
         <div className="tb-div"/>
-        <input
-          className="title-input"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          onBlur={e => { if (!e.target.value.trim()) setTitle('Untitled'); }}
-          placeholder="Untitled"
-          spellCheck={false}
-        />
+        {isEditingTitle ? (
+          <input
+            className="title-input"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            onBlur={e => {
+              setIsEditingTitle(false);
+              if (!e.target.value.trim()) setTitle('Untitled');
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === 'Escape') {
+                e.currentTarget.blur();
+              }
+            }}
+            autoFocus
+            placeholder="Untitled"
+            spellCheck={false}
+          />
+        ) : (
+          <div
+            ref={titleContainerRef}
+            className="title-display-wrap"
+            onClick={() => setIsEditingTitle(true)}
+            title="Click to edit title"
+          >
+            <div
+              ref={titleTextRef}
+              className={`title-display-text ${isTitleOverflowing ? 'marquee' : ''}`}
+            >
+              {title}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── CENTER: Tool modes + Zoom controls ── */}
@@ -303,7 +348,6 @@ export function TopBar({ presenting, onPresent }: Props) {
             onClick={() => setTool('select')}
           >
             <IcCursor size={14}/>
-            <span>Select</span>
           </button>
           <button
             className={`tb-tool-btn ${tool === 'pan' ? 'active' : ''}`}
@@ -311,7 +355,6 @@ export function TopBar({ presenting, onPresent }: Props) {
             onClick={() => setTool('pan')}
           >
             <IcHand size={14}/>
-            <span>Grab</span>
           </button>
         </div>
 
@@ -360,12 +403,11 @@ export function TopBar({ presenting, onPresent }: Props) {
           <span>AI Assist</span>
         </button>
         <button
-          className="btn primary"
+          className="btn primary icon"
           onClick={onPresent}
           title="Present fullscreen"
         >
           <IcPresent size={13}/>
-          <span>Present</span>
         </button>
         <div className="avatar">V</div>
       </div>

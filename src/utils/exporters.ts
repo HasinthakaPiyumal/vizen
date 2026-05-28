@@ -136,8 +136,12 @@ function svgToCanvas(
     if (!ctx) { reject(new Error('Could not get canvas context')); return; }
 
     const serialized = new XMLSerializer().serializeToString(svgEl);
-    const svgBlob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
+    console.log('SERIALIZED SVG:', serialized);
+    
+    // Use a base64 Data URL instead of a Blob URL to prevent canvas tainting
+    // when the SVG contains <foreignObject> elements.
+    const base64 = btoa(unescape(encodeURIComponent(serialized)));
+    const url = `data:image/svg+xml;base64,${base64}`;
 
     const img = new Image();
     img.onload = () => {
@@ -145,11 +149,9 @@ function svgToCanvas(
       ctx.fillStyle = '#07090f';
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
-      URL.revokeObjectURL(url);
       resolve(canvas);
     };
     img.onerror = (err) => {
-      URL.revokeObjectURL(url);
       reject(err);
     };
     img.src = url;
@@ -758,13 +760,19 @@ export const exportToVideo = async (
     return;
   }
 
-  // Setup MediaRecorder
-  const stream = canvas.captureStream(30);
+  // Use captureStream(0) for manual frame control — frames are only
+  // pushed when we explicitly call track.requestFrame(), which decouples
+  // the video frame rate from the (slow) SVG rendering time.
+  const stream = canvas.captureStream(0);
+  const track = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack;
   const chunks: Blob[] = [];
 
   let recorder: MediaRecorder;
   try {
-    recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+    recorder = new MediaRecorder(stream, {
+      mimeType: 'video/webm;codecs=vp9',
+      videoBitsPerSecond: 8_000_000,
+    });
   } catch {
     try {
       recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
@@ -784,8 +792,9 @@ export const exportToVideo = async (
   });
 
   const originalStepIdx = store.stepIdx;
-  const framesPerStep = 60; // ~2 seconds at 30fps
-  const transitionFrames = 10; // frames for transition
+  const FPS = 30;
+  const framesPerStep = 60; // 2 seconds per step at 30fps
+  const frameInterval = 1000 / FPS; // 33.33ms
   const totalSteps = steps.length;
   const totalFrames = totalSteps * framesPerStep;
 
@@ -794,23 +803,32 @@ export const exportToVideo = async (
 
   try {
     for (let stepI = 0; stepI < totalSteps; stepI++) {
-      // Set the current step
+      // Set the current step in the store so the live SVG updates
       store.setStepIdx(stepI);
 
-      // Wait for React to re-render the SVG
+      // Wait for React to re-render the SVG with the new step
       await delay(100);
 
-      // Capture multiple frames of this step for the video duration
       for (let frame = 0; frame < framesPerStep; frame++) {
         const globalFrame = stepI * framesPerStep + frame;
-        onProgress((globalFrame / totalFrames) * 100);
+        onProgress(Math.min(99, (globalFrame / totalFrames) * 100));
+
+        // Pause recorder so the expensive rendering time below does NOT
+        // count toward the video timeline. This is the key trick for
+        // perfectly smooth output.
+        recorder.pause();
 
         try {
-          const timeMs = globalFrame * (1000 / 30);
-          // Prepare a clean SVG clone for this frame
-          const cleanSvg = prepareSvgForRaster(svgEl, bounds, { timeMs, originalSvg: svgEl });
+          // Calculate the virtual animation time for this frame
+          const timeMs = globalFrame * frameInterval;
 
-          // Render SVG to a temporary canvas
+          // Prepare a clean SVG clone for this frame
+          const cleanSvg = prepareSvgForRaster(svgEl, bounds, {
+            timeMs,
+            originalSvg: svgEl,
+          });
+
+          // Render SVG to a temporary canvas (this is the slow part)
           const frameCanvas = await svgToCanvas(cleanSvg, width, height, 2);
 
           // Copy the frame to our recording canvas
@@ -822,8 +840,14 @@ export const exportToVideo = async (
           ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
-        // Wait a frame interval to let MediaRecorder capture
-        await delay(33); // ~30fps
+        // Resume recording and push this frame — the recorder now sees
+        // a fresh canvas and records it for exactly `frameInterval` ms.
+        recorder.resume();
+        track.requestFrame();
+
+        // Hold the frame for exactly one frame interval so the recorder
+        // captures it at the correct duration (33ms = 30fps).
+        await delay(frameInterval);
       }
     }
 

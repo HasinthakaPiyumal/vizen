@@ -9,6 +9,7 @@ import { IcCursor } from '../Icons';
 interface DragState    { nodeId: string; startX: number; startY: number; originX: number; originY: number }
 interface PendingNodeDrag { pointerId: number; nodeId: string; startClientX: number; startClientY: number; startX: number; startY: number; originX: number; originY: number }
 interface Ripple       { id: number; x: number; y: number }
+interface TrailPoint   { x: number; y: number; t: number }
 interface EdgeReconnect { edgeId: string; end: 'from' | 'to'; fixedX: number; fixedY: number }
 interface ResizeDrag    { nodeId: string; handle: ResizeHandle; startSX: number; startSY: number; origX: number; origY: number; origW: number; origH: number }
 interface RectSelect    { sx: number; sy: number; ex: number; ey: number }
@@ -81,6 +82,10 @@ export function Canvas({ presenting, onExitPresent }: Props) {
   const editorRef    = useRef<HTMLDivElement>(null);
   const edgeLabelRef = useRef<HTMLInputElement>(null);
   const rippleIdRef  = useRef(0);
+  const laserTrailRef = useRef<TrailPoint[]>([]);
+  const laserDrawingRef = useRef(false);
+  const laserRafRef = useRef<number>(0);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const prevViewRef  = useRef<{ zoom: number; pan: { x: number; y: number } } | null>(null);
   const initialNodeHeightRef = useRef<number>(56);
   const gestureStartSnapshotRef = useRef<Snapshot | null>(null);
@@ -645,21 +650,179 @@ export function Canvas({ presenting, onExitPresent }: Props) {
     store.addNode(type, sc.x - 65, sc.y - 28);
   }, [toScene, store]);
 
+  // ── Laser trail: animation loop (fading from tail, drawing to canvas) ──
+  const TRAIL_LIFETIME = 950; // ms a point lives (shorter lifetime for a smaller, cleaner tail)
+  const tickTrail = useCallback(() => {
+    const trail = laserTrailRef.current;
+    const now = performance.now();
+
+    // Remove expired points from the front
+    while (trail.length > 0 && now - trail[0].t > TRAIL_LIFETIME) {
+      trail.shift();
+    }
+
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        
+        // Match canvas physical dimensions to client dimensions
+        if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
+          canvas.width = rect.width * dpr;
+          canvas.height = rect.height * dpr;
+          ctx.scale(dpr, dpr);
+        } else {
+          ctx.clearRect(0, 0, rect.width, rect.height);
+        }
+
+        if (trail.length > 1) {
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+
+          // Helper to draw the path utilizing quadratic curves for extreme smoothness
+          const drawPath = (styleFn: (ratio: number) => { width: number; color: string }) => {
+            if (trail.length === 2) {
+              const ratio = 1 - Math.max(0, Math.min(1, (now - (trail[0].t + trail[1].t) / 2) / TRAIL_LIFETIME));
+              const style = styleFn(ratio);
+              ctx.beginPath();
+              ctx.moveTo(trail[0].x, trail[0].y);
+              ctx.lineTo(trail[1].x, trail[1].y);
+              ctx.strokeStyle = style.color;
+              ctx.lineWidth = style.width;
+              ctx.stroke();
+              return;
+            }
+
+            // 1. First segment (tapered tail start)
+            {
+              const ratio = 1 - Math.max(0, Math.min(1, (now - (trail[0].t + trail[1].t) / 2) / TRAIL_LIFETIME));
+              const style = styleFn(ratio);
+              ctx.beginPath();
+              ctx.moveTo(trail[0].x, trail[0].y);
+              const midX = (trail[0].x + trail[1].x) / 2;
+              const midY = (trail[0].y + trail[1].y) / 2;
+              ctx.lineTo(midX, midY);
+              ctx.strokeStyle = style.color;
+              ctx.lineWidth = style.width;
+              ctx.stroke();
+            }
+
+            // 2. Middle segments (smooth quadratic curves)
+            for (let i = 1; i < trail.length - 1; i++) {
+              const p0 = trail[i - 1];
+              const p1 = trail[i];
+              const p2 = trail[i + 1];
+              
+              const ratio = 1 - Math.max(0, Math.min(1, (now - p1.t) / TRAIL_LIFETIME));
+              const style = styleFn(ratio);
+              
+              const prevMidX = (p0.x + p1.x) / 2;
+              const prevMidY = (p0.y + p1.y) / 2;
+              const nextMidX = (p1.x + p2.x) / 2;
+              const nextMidY = (p1.y + p2.y) / 2;
+              
+              ctx.beginPath();
+              ctx.moveTo(prevMidX, prevMidY);
+              ctx.quadraticCurveTo(p1.x, p1.y, nextMidX, nextMidY);
+              ctx.strokeStyle = style.color;
+              ctx.lineWidth = style.width;
+              ctx.stroke();
+            }
+
+            // 3. Last segment (connecting to cursor position)
+            {
+              const len = trail.length;
+              const ratio = 1 - Math.max(0, Math.min(1, (now - (trail[len - 2].t + trail[len - 1].t) / 2) / TRAIL_LIFETIME));
+              const style = styleFn(ratio);
+              ctx.beginPath();
+              const midX = (trail[len - 2].x + trail[len - 1].x) / 2;
+              const midY = (trail[len - 2].y + trail[len - 1].y) / 2;
+              ctx.moveTo(midX, midY);
+              ctx.lineTo(trail[len - 1].x, trail[len - 1].y);
+              ctx.strokeStyle = style.color;
+              ctx.lineWidth = style.width;
+              ctx.stroke();
+            }
+          };
+
+          // Draw single neon-red trail pass (tapered to thin line at the tail, high opacity)
+          drawPath((ratio) => ({
+            width: 1.0 + 3.5 * ratio,
+            color: `rgba(255, 42, 95, ${ratio * 0.95})`
+          }));
+        }
+      }
+    }
+
+    if (laserDrawingRef.current || trail.length > 0) {
+      laserRafRef.current = requestAnimationFrame(tickTrail);
+    }
+  }, []);
+
   // ── Laser: track position ──
   const onWrapMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!presenting || !laserMode) return;
     const rect = wrapRef.current!.getBoundingClientRect();
-    setLaserPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setLaserPos({ x, y });
   }, [presenting, laserMode]);
 
-  // ── Laser: click ripple ──
+  // ── Laser: click ripple + start drawing trail ──
   const onWrapMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!presenting || !laserMode) return;
     if ((e.target as Element).closest('.present-overlay, .present-topbar')) return;
     const rect = wrapRef.current!.getBoundingClientRect();
     const id   = ++rippleIdRef.current;
-    setRipples(r => [...r, { id, x: e.clientX - rect.left, y: e.clientY - rect.top }]);
-    setTimeout(() => setRipples(r => r.filter(rr => rr.id !== id)), 650);
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setRipples(r => [...r, { id, x, y }]);
+    setTimeout(() => setRipples(r => r.filter(rr => rr.id !== id)), 1100);
+
+    // Initialize laser trail drawing
+    laserDrawingRef.current = true;
+    laserTrailRef.current = [{ x, y, t: performance.now() }];
+    cancelAnimationFrame(laserRafRef.current);
+    laserRafRef.current = requestAnimationFrame(tickTrail);
+  }, [presenting, laserMode, tickTrail]);
+
+  // ── Laser: global mousemove while drawing (captures fast drags reliably) ──
+  useEffect(() => {
+    if (!presenting || !laserMode) return;
+    const handleMove = (e: MouseEvent) => {
+      if (!laserDrawingRef.current || !wrapRef.current) return;
+      const rect = wrapRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      laserTrailRef.current.push({ x, y, t: performance.now() });
+    };
+    window.addEventListener('mousemove', handleMove);
+    return () => window.removeEventListener('mousemove', handleMove);
+  }, [presenting, laserMode]);
+
+  // ── Laser: stop drawing on mouse up ──
+  useEffect(() => {
+    if (!presenting || !laserMode) return;
+    const handleUp = () => {
+      laserDrawingRef.current = false;
+    };
+    window.addEventListener('mouseup', handleUp);
+    return () => window.removeEventListener('mouseup', handleUp);
+  }, [presenting, laserMode]);
+
+  // Cleanup trail animation on unmount or mode change
+  useEffect(() => {
+    return () => {
+      cancelAnimationFrame(laserRafRef.current);
+      laserTrailRef.current = [];
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    };
   }, [presenting, laserMode]);
 
   const cursorClass = tool === 'pan' ? 'pan-mode' : '';
@@ -685,7 +848,7 @@ export function Canvas({ presenting, onExitPresent }: Props) {
         }
       }}
     >
-      <div className="canvas-floor"/>
+      {!presenting && <div className="canvas-floor"/>}
 
       <svg
         id="vizen-svg-canvas"
@@ -896,6 +1059,22 @@ export function Canvas({ presenting, onExitPresent }: Props) {
             )}
           </button>
         </div>
+      )}
+
+      {/* ── Laser trail Canvas ── */}
+      {presenting && laserMode && (
+        <canvas
+          ref={canvasRef}
+          className="laser-trail-canvas"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            zIndex: 38
+          }}
+        />
       )}
 
       {/* ── Laser dot ── */}

@@ -76,27 +76,72 @@ Defines animated particles flowing along an edge during a step.
 - Use unique IDs for all nodes, edges, and steps.
 `.trim();
 
-function buildPrompt(userRequest: string, currentDiagram: string): string {
+function buildNewPrompt(userRequest: string): string {
+  return `You are an AI assistant that helps generate brand new Vizen diagrams. Vizen is a visual diagram editor that stores diagrams as JSON.
+
+${SCHEMA_DOCS}
+
+## Example Vizen Diagram JSON structure
+\`\`\`json
+{
+  "title": "Example Architecture",
+  "nodes": [
+    { "id": "user", "type": "circle", "label": "Client / User", "sub": "Web Browser", "x": 100, "y": 150, "w": 120, "h": 56, "accent": "blue" },
+    { "id": "api", "type": "rect", "label": "API Gateway", "sub": "Reverse Proxy", "x": 300, "y": 150, "w": 130, "h": 56, "accent": "violet" },
+    { "id": "db", "type": "diamond", "label": "PostgreSQL DB", "sub": "Database", "x": 500, "y": 150, "w": 130, "h": 80, "accent": "mint" }
+  ],
+  "edges": [
+    { "id": "edge_user_api", "from": "user", "to": "api", "label": "HTTPS Request", "defaultColor": "#7b9fff", "lineType": "solid", "arrowHead": true },
+    { "id": "edge_api_db", "from": "api", "to": "db", "label": "SQL Query", "defaultColor": "#a78bfa", "lineType": "dashed", "arrowHead": true }
+  ],
+  "steps": [
+    {
+      "id": "step_0",
+      "passLabel": "OVERVIEW",
+      "passColor": "#7b9fff",
+      "taskEmoji": "🚀",
+      "taskName": "Initial Setup",
+      "task": 0,
+      "lit": ["user", "api"],
+      "flows": [
+        { "edgeId": "edge_user_api", "speed": 1 }
+      ],
+      "desc": "The client sends an HTTPS request to the <strong>API Gateway</strong>."
+    }
+  ],
+  "stepIdx": 0
+}
+\`\`\`
+
+## User's Request
+Create a new diagram based on: ${userRequest}
+
+## Instructions
+Based on the user's request, generate a COMPLETE diagram JSON matching the Vizen schema. Return ONLY the raw JSON object (no markdown code fences, no explanations). The JSON must be valid and follow the Vizen schema exactly. Ensure all node/edge IDs referenced in steps actually exist in the nodes/edges arrays.`;
+}
+
+function buildUpdatePrompt(userRequest: string, currentDiagram: string): string {
   return `You are an AI assistant that helps modify Vizen diagrams. Vizen is a visual diagram editor that stores diagrams as JSON.
 
 ${SCHEMA_DOCS}
 
-## Current Diagram State
+## Current Diagram State (Strictly modify this diagram)
 \`\`\`json
 ${currentDiagram}
 \`\`\`
 
 ## User's Request
-${userRequest}
+Apply these updates: ${userRequest}
 
 ## Instructions
-Based on the user's request above, generate a COMPLETE updated diagram JSON. Return ONLY the raw JSON object (no markdown code fences, no explanations). The JSON must be valid and follow the Vizen schema exactly. Include ALL nodes, edges, and steps — not just the changed ones. Make sure all node/edge IDs referenced in steps actually exist in the nodes/edges arrays.`;
+Based on the user's request above, modify the current diagram state and generate a COMPLETE updated diagram JSON. You must strictly modify the provided diagram state and return ONLY the raw JSON object (no markdown code fences, no explanations). The JSON must be valid and follow the Vizen schema exactly. Include ALL nodes, edges, and steps — not just the changed ones. Make sure all node/edge IDs referenced in steps actually exist in the nodes/edges arrays.`;
 }
 
 type Stage = 'compose' | 'apply';
 
 export function AiAssistModal({ onClose }: Props) {
   const [stage, setStage] = useState<Stage>('compose');
+  const [assistMode, setAssistMode] = useState<'new' | 'update'>('update');
   const [userRequest, setUserRequest] = useState('');
   const [generatedPrompt, setGeneratedPrompt] = useState('');
   const [aiResponse, setAiResponse] = useState('');
@@ -119,9 +164,14 @@ export function AiAssistModal({ onClose }: Props) {
 
   const handleGeneratePrompt = () => {
     if (!userRequest.trim()) return;
-    const { title, nodes, edges, steps, stepIdx } = useDiagramStore.getState();
-    const currentDiagram = JSON.stringify({ title, nodes, edges, steps, stepIdx }, null, 2);
-    const prompt = buildPrompt(userRequest.trim(), currentDiagram);
+    let prompt = '';
+    if (assistMode === 'new') {
+      prompt = buildNewPrompt(userRequest.trim());
+    } else {
+      const { title, nodes, edges, steps, stepIdx } = useDiagramStore.getState();
+      const currentDiagram = JSON.stringify({ title, nodes, edges, steps, stepIdx }, null, 2);
+      prompt = buildUpdatePrompt(userRequest.trim(), currentDiagram);
+    }
     setGeneratedPrompt(prompt);
     navigator.clipboard.writeText(prompt).then(() => {
       setCopied(true);
@@ -197,12 +247,35 @@ export function AiAssistModal({ onClose }: Props) {
             <>
               <div className="ai-stage-label">
                 <span className="ai-step-num">1</span>
-                Describe the changes you want
+                Select Assist Mode
+              </div>
+              <div className="tb-tool-group" style={{ marginBottom: 14, display: 'flex', gap: 4 }}>
+                <button
+                  className={`tb-tool-btn ${assistMode === 'new' ? 'active' : ''}`}
+                  onClick={() => setAssistMode('new')}
+                  style={{ flex: 1, justifyContent: 'center', height: 'auto', padding: '6px 12px' }}
+                >
+                  New Diagram
+                </button>
+                <button
+                  className={`tb-tool-btn ${assistMode === 'update' ? 'active' : ''}`}
+                  onClick={() => setAssistMode('update')}
+                  style={{ flex: 1, justifyContent: 'center', height: 'auto', padding: '6px 12px' }}
+                >
+                  Update Diagram
+                </button>
+              </div>
+
+              <div className="ai-stage-label">
+                <span className="ai-step-num">2</span>
+                {assistMode === 'new' ? 'Describe the new diagram' : 'Describe the changes you want'}
               </div>
               <textarea
                 ref={textareaRef}
                 className="ai-textarea"
-                placeholder="e.g. Add a database node connected to the API node, change the color theme to green..."
+                placeholder={assistMode === 'new' 
+                  ? "e.g. A multi-tier architecture with a frontend React app, a Node microservice, and a Redis cache..."
+                  : "e.g. Add a database node connected to the API node, change the color theme to green..."}
                 value={userRequest}
                 onChange={e => setUserRequest(e.target.value)}
                 onKeyDown={e => {
@@ -214,7 +287,9 @@ export function AiAssistModal({ onClose }: Props) {
                 rows={4}
               />
               <div className="ai-hint">
-                Your current diagram details and the Vizen schema will be automatically included in the prompt.
+                {assistMode === 'new' 
+                  ? 'The prompt will include example Vizen JSON structure and the schema documentation. Your current diagram will NOT be included.'
+                  : 'Your current diagram details and the Vizen schema will be included in the prompt to strictly modify the existing structure.'}
               </div>
               <button
                 className="btn primary ai-gen-btn"
@@ -237,7 +312,7 @@ export function AiAssistModal({ onClose }: Props) {
                 {copied ? '✓ Prompt copied to clipboard!' : 'Prompt is ready in your clipboard'}
               </div>
               <div className="ai-instructions">
-                <span className="ai-step-num">2</span>
+                <span className="ai-step-num">3</span>
                 Paste the prompt into your AI assistant (ChatGPT, Claude, Gemini, etc.),
                 then paste the AI's JSON response below:
               </div>

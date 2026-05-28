@@ -55,11 +55,40 @@ body {
   color: var(--fg-1); font-family: var(--font-sans);
   font-size: var(--t-body); font-weight: var(--fw-semi);
   padding: 3px 7px; border-radius: var(--r-2);
-  outline: none; min-width: 60px; max-width: 200px;
+  outline: none; width: 260px; box-sizing: border-box;
   transition: border-color var(--dur-fast), background var(--dur-fast);
 }
 .title-input:hover { background: rgba(255,255,255,0.04); border-color: var(--line-2); }
 .title-input:focus { background: rgba(255,255,255,0.06); border-color: var(--accent-blue); }
+
+.title-display-wrap {
+  display: flex; align-items: center;
+  width: 260px; height: 28px; box-sizing: border-box;
+  padding: 3px 7px; border-radius: var(--r-2);
+  border: 1px solid transparent; background: transparent;
+  color: var(--fg-1); font-family: var(--font-sans);
+  font-size: var(--t-body); font-weight: var(--fw-semi);
+  cursor: pointer; overflow: hidden; white-space: nowrap;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+.title-display-wrap:hover { background: rgba(255,255,255,0.04); border-color: var(--line-2); }
+
+.title-display-text {
+  display: inline-block;
+  will-change: transform;
+}
+.title-display-text.marquee {
+  animation: marquee-scroll 6s ease-in-out infinite alternate;
+}
+
+@keyframes marquee-scroll {
+  0%, 20% {
+    transform: translate3d(0, 0, 0);
+  }
+  80%, 100% {
+    transform: translate3d(var(--scroll-dist, 0px), 0, 0);
+  }
+}
 
 /* Tool mode buttons in topbar */
 .tb-controls { gap: var(--space-2); }
@@ -69,12 +98,10 @@ body {
   border-radius: var(--r-3); padding: 3px;
 }
 .tb-tool-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 9px; border-radius: var(--r-2);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: var(--r-2);
   background: transparent; border: none; cursor: pointer;
-  color: var(--fg-3); font-family: var(--font-sans); font-size: var(--t-small);
-  font-weight: var(--fw-semi); transition: all var(--dur-fast);
-  white-space: nowrap;
+  color: var(--fg-3); transition: all var(--dur-fast);
 }
 .tb-tool-btn:hover { background: rgba(255,255,255,0.06); color: var(--fg-1); }
 .tb-tool-btn.active {
@@ -531,25 +558,78 @@ body {
 .canvas-wrap.laser-mode * { cursor: none !important; }
 
 .laser-dot {
-  position: absolute; width: 7px; height: 7px;
-  border-radius: 50%; pointer-events: none;
-  background: rgba(248,113,113,0.98);
-  box-shadow: 0 0 0 2px rgba(248,113,113,0.28), 0 0 7px rgba(248,113,113,0.75);
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: #ffe5ec;
   transform: translate(-50%, -50%);
   z-index: 40;
+  animation: laser-pulse 1.2s infinite ease-in-out alternate;
+}
+
+@keyframes laser-pulse {
+  0% {
+    box-shadow: 
+      0 0 0 2.5px rgba(255, 42, 95, 0.9),
+      0 0 6px rgba(255, 42, 95, 0.85),
+      0 0 14px rgba(255, 42, 95, 0.5);
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    box-shadow: 
+      0 0 0 3.5px rgba(255, 42, 95, 0.95),
+      0 0 10px rgba(255, 42, 95, 0.9),
+      0 0 20px rgba(255, 42, 95, 0.65);
+    transform: translate(-50%, -50%) scale(1.15);
+  }
 }
 
 /* Laser click ripple */
 .laser-ripple {
-  position: absolute; border-radius: 50%;
-  border: 1.5px solid rgba(248,113,113,0.75);
-  pointer-events: none; transform: translate(-50%, -50%);
+  position: absolute;
+  width: 160px;
+  height: 160px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
   z-index: 39;
-  animation: laser-click 0.55s ease-out forwards;
 }
-@keyframes laser-click {
-  0%   { width: 0;    height: 0;    opacity: 1; }
-  100% { width: 44px; height: 44px; opacity: 0; }
+
+.laser-ripple::before,
+.laser-ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 42, 95, 0.85);
+  background: radial-gradient(circle, rgba(255, 42, 95, 0.15) 0%, rgba(255, 42, 95, 0.03) 50%, transparent 80%);
+  box-shadow: 0 0 12px rgba(255, 42, 95, 0.35), inset 0 0 10px rgba(255, 42, 95, 0.1);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0);
+}
+
+.laser-ripple::before {
+  animation: laser-click-wave 0.85s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+}
+
+.laser-ripple::after {
+  animation: laser-click-wave 0.85s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+  animation-delay: 0.18s;
+}
+
+@keyframes laser-click-wave {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+    border-width: 3px;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+    border-width: 1px;
+  }
 }
 
 /* ── Hamburger menu ── */

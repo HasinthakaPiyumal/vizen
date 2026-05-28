@@ -90,11 +90,11 @@ export const useDiagramStore = create<DiagramState>()(
   persist(
     (set, get) => ({
       // Initial state (loaded from localStorage or sample)
-      title: 'HippoCortex',
+      title: 'Vizen Onboarding',
       nodes: SAMPLE_NODES,
       edges: SAMPLE_EDGES,
       steps: SAMPLE_STEPS,
-      stepIdx: 5,
+      stepIdx: 0,
 
       // Ephemeral (not persisted, always starts fresh)
       selection: null,
