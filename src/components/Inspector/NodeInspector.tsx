@@ -33,7 +33,7 @@ export function NodeInspector({ nodeId }: { nodeId: string }) {
         </div>
         <div>
           <div className="insp-name">{node.label}</div>
-          <div className="insp-type">{node.type}</div>
+          {/* <div className="insp-type">{node.type}</div> */}
         </div>
       </div>
 
@@ -46,7 +46,7 @@ export function NodeInspector({ nodeId }: { nodeId: string }) {
                  className={`color-sw ${node.accent === o.key ? 'selected' : ''}`}
                  style={{ background: o.color }}
                  title={o.key}
-                 onClick={() => updateNode(nodeId, { accent: o.key })}/>
+                 onClick={() => { useDiagramStore.getState().pushToUndo(); updateNode(nodeId, { accent: o.key }); }}/>
           ))}
         </div>
       </div>
@@ -58,31 +58,35 @@ export function NodeInspector({ nodeId }: { nodeId: string }) {
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-4)' }}>X</span>
           <input className="insp-input mono" style={{ maxWidth: 72 }}
                  value={Math.round(node.x)}
+                 onFocus={() => useDiagramStore.getState().pushToUndo()}
                  onChange={e => updateNode(nodeId, { x: +e.target.value || 0 })}/>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-4)' }}>Y</span>
           <input className="insp-input mono" style={{ maxWidth: 72 }}
                  value={Math.round(node.y)}
+                 onFocus={() => useDiagramStore.getState().pushToUndo()}
                  onChange={e => updateNode(nodeId, { y: +e.target.value || 0 })}/>
         </div>
         <div className="insp-row">
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-4)' }}>W</span>
           <input className="insp-input mono" style={{ maxWidth: 72 }}
                  value={Math.round(node.w)}
+                 onFocus={() => useDiagramStore.getState().pushToUndo()}
                  onChange={e => updateNode(nodeId, { w: Math.max(60, +e.target.value || 60) })}/>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-4)' }}>H</span>
           <input className="insp-input mono" style={{ maxWidth: 72 }}
                  value={Math.round(node.h)}
+                 onFocus={() => useDiagramStore.getState().pushToUndo()}
                  onChange={e => updateNode(nodeId, { h: Math.max(36, +e.target.value || 36) })}/>
         </div>
       </div>
 
       {/* Tip */}
-      <div className="insp-section">
+      {/* <div className="insp-section">
         <p style={{ margin: 0, fontSize: 12, color: 'var(--fg-4)', lineHeight: 1.55 }}>
           Switch to <strong style={{ color: 'var(--fg-2)' }}>Connect</strong> tool, then drag from
           port handles to draw edges. Click an edge to configure per-step animations.
         </p>
-      </div>
+      </div> */}
 
       {/* Delete */}
       <div className="insp-delete-row">

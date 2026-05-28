@@ -63,7 +63,7 @@ export function EdgeInspector({ edgeId }: { edgeId: string }) {
         </div>
         <div>
           <div className="insp-name">{edge.label || 'Flow'}</div>
-          <div className="insp-type">EDGE · {edge.from} → {edge.to}</div>
+          {/* <div className="insp-type">EDGE · {edge.from} → {edge.to}</div> */}
         </div>
       </div>
 
@@ -79,6 +79,7 @@ export function EdgeInspector({ edgeId }: { edgeId: string }) {
             style={{ flex: 1, maxWidth: 'none', textAlign: 'left' }}
             placeholder="optional text…"
             value={edge.label ?? ''}
+            onFocus={() => useDiagramStore.getState().pushToUndo()}
             onChange={e => updateEdge(edgeId, { label: e.target.value || undefined })}
           />
         </div>
@@ -148,6 +149,7 @@ export function EdgeInspector({ edgeId }: { edgeId: string }) {
           <span style={{ fontSize: 13, color: isActive ? 'var(--fg-2)' : 'var(--fg-5)' }}>Speed</span>
           <input className="slider" type="range" min="0.3" max="2.5" step="0.1"
                  value={speed} disabled={!isActive}
+                 onMouseDown={() => useDiagramStore.getState().pushToUndo()}
                  onChange={e => setProp('speed', +e.target.value)}/>
           <span className="value-mono" style={{ opacity: isActive ? 1 : 0.35 }}>{speed.toFixed(1)}×</span>
         </div>

@@ -65,6 +65,7 @@ export function BottomBar() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (document.activeElement?.tagName === 'INPUT' ||
+          document.activeElement?.tagName === 'TEXTAREA' ||
           (document.activeElement as HTMLElement)?.isContentEditable) return;
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); setStepIdx(Math.max(0, stepIdx - 1)); }
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); setStepIdx(Math.min(steps.length - 1, stepIdx + 1)); }

@@ -3,10 +3,11 @@ import { useDiagramStore, TYPE_COLORS_MAP, ACCENT_COLORS } from '../../store/use
 import { CanvasNode } from './CanvasNode';
 import { CanvasEdge } from './CanvasEdge';
 import { ConnectionDraftLine } from './ConnectionDraft';
-import type { ConnectionDraft, DiagramNode, ResizeHandle } from '../../types';
+import type { ConnectionDraft, DiagramNode, ResizeHandle, Snapshot } from '../../types';
 import { IcCursor } from '../Icons';
 
 interface DragState    { nodeId: string; startX: number; startY: number; originX: number; originY: number }
+interface PendingNodeDrag { pointerId: number; nodeId: string; startClientX: number; startClientY: number; startX: number; startY: number; originX: number; originY: number }
 interface Ripple       { id: number; x: number; y: number }
 interface EdgeReconnect { edgeId: string; end: 'from' | 'to'; fixedX: number; fixedY: number }
 interface ResizeDrag    { nodeId: string; handle: ResizeHandle; startSX: number; startSY: number; origX: number; origY: number; origW: number; origH: number }
@@ -70,7 +71,7 @@ function nearestPort(n: DiagramNode, x: number, y: number): PortDir {
 
 export function Canvas({ presenting, onExitPresent }: Props) {
   const store = useDiagramStore();
-  const { nodes, edges, steps, stepIdx, selection, tool, zoom, pan } = store;
+  const { nodes, edges, steps, stepIdx, selection, tool, zoom, pan, clipboard } = store;
   const step    = steps[stepIdx];
   const lit     = new Set(step?.lit ?? []);
   const flowMap = new Map((step?.flows ?? []).map(f => [f.edgeId, f]));
@@ -81,8 +82,12 @@ export function Canvas({ presenting, onExitPresent }: Props) {
   const edgeLabelRef = useRef<HTMLInputElement>(null);
   const rippleIdRef  = useRef(0);
   const prevViewRef  = useRef<{ zoom: number; pan: { x: number; y: number } } | null>(null);
+  const initialNodeHeightRef = useRef<number>(56);
+  const gestureStartSnapshotRef = useRef<Snapshot | null>(null);
 
   const [nodeDrag,    setNodeDrag]    = useState<DragState | null>(null);
+  const pendingNodeDragRef = useRef<PendingNodeDrag | null>(null);
+  const justOpenedNodeEditorRef = useRef(false);
   const [draft,       setDraft]       = useState<ConnectionDraft | null>(null);
   const [reconnect,   setReconnect]   = useState<EdgeReconnect | null>(null);
   const [mouseXY,     setMouseXY]     = useState({ x: 0, y: 0 });
@@ -96,14 +101,22 @@ export function Canvas({ presenting, onExitPresent }: Props) {
   const [resizeDrag, setResizeDrag] = useState<ResizeDrag | null>(null);
   const [snapGuides, setSnapGuides] = useState<{ guideX?: number; guideY?: number }>({});
   const [rectSelect, setRectSelect] = useState<RectSelect | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sceneX: number; sceneY: number } | null>(null);
 
   // ── Auto-fit on first mount ──
   const hasFit = useRef(false);
   useEffect(() => {
     if (hasFit.current || !wrapRef.current || !nodes.length) return;
-    hasFit.current = true;
-    const t = setTimeout(() => {
-      const rect = wrapRef.current!.getBoundingClientRect();
+
+    let handle: number;
+    const tryFit = () => {
+      if (!wrapRef.current) return;
+      const rect = wrapRef.current.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        handle = requestAnimationFrame(tryFit);
+        return;
+      }
+      hasFit.current = true;
       const pad = 72;
       const xs = nodes.map(n => n.x), xe = nodes.map(n => n.x + n.w);
       const ys = nodes.map(n => n.y), ye = nodes.map(n => n.y + n.h);
@@ -113,8 +126,10 @@ export function Canvas({ presenting, onExitPresent }: Props) {
       const z = Math.min((rect.width - pad * 2) / sceneW, (rect.height - pad * 2) / sceneH, 1.2);
       store.setZoom(z);
       store.setPan({ x: (rect.width - sceneW * z) / 2 - minX * z, y: (rect.height - sceneH * z) / 2 - minY * z });
-    }, 80);
-    return () => clearTimeout(t);
+    };
+
+    handle = requestAnimationFrame(tryFit);
+    return () => cancelAnimationFrame(handle);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes.length]);
 
@@ -146,18 +161,21 @@ export function Canvas({ presenting, onExitPresent }: Props) {
   }, [pan, zoom]);
 
   const fitView = useCallback(() => {
-    if (!nodes.length || !wrapRef.current) return;
+    if (!wrapRef.current) return;
+    const { nodes: currentNodes, setZoom, setPan } = useDiagramStore.getState();
+    if (!currentNodes.length) return;
     const rect = wrapRef.current.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
     const pad = 64;
-    const xs = nodes.map(n => n.x), xe = nodes.map(n => n.x + n.w);
-    const ys = nodes.map(n => n.y), ye = nodes.map(n => n.y + n.h);
+    const xs = currentNodes.map(n => n.x), xe = currentNodes.map(n => n.x + n.w);
+    const ys = currentNodes.map(n => n.y), ye = currentNodes.map(n => n.y + n.h);
     const minX = Math.min(...xs), maxX = Math.max(...xe);
     const minY = Math.min(...ys), maxY = Math.max(...ye);
     const sceneW = maxX - minX, sceneH = maxY - minY;
     const z = Math.min((rect.width - pad * 2) / sceneW, (rect.height - pad * 2) / sceneH, 1.5);
-    store.setZoom(z);
-    store.setPan({ x: (rect.width - sceneW * z) / 2 - minX * z, y: (rect.height - sceneH * z) / 2 - minY * z });
-  }, [nodes, store]);
+    setZoom(z);
+    setPan({ x: (rect.width - sceneW * z) / 2 - minX * z, y: (rect.height - sceneH * z) / 2 - minY * z });
+  }, []);
 
   // ── Fit canvas when entering/exiting presentation; save & restore view ──
   useEffect(() => {
@@ -199,6 +217,23 @@ export function Canvas({ presenting, onExitPresent }: Props) {
     const sc = toScene(e.clientX, e.clientY);
     setMouseXY(sc);
     if (presenting) return;
+
+    // ── Promote pending node drag → active drag (deferred capture) ──
+    if (pendingNodeDragRef.current) {
+      const p = pendingNodeDragRef.current;
+      const dx = e.clientX - p.startClientX, dy = e.clientY - p.startClientY;
+      if (Math.hypot(dx, dy) > 3) {
+        (svgRef.current as Element | null)?.setPointerCapture?.(p.pointerId);
+        gestureStartSnapshotRef.current = store.getSnapshot();
+        setNodeDrag({
+          nodeId: p.nodeId, startX: p.startX, startY: p.startY,
+          originX: p.originX, originY: p.originY,
+        });
+        pendingNodeDragRef.current = null;
+      } else {
+        return;
+      }
+    }
 
     if (panDrag) {
       store.setPan({ x: panDrag.startPan.x + (e.clientX - panDrag.startX), y: panDrag.startPan.y + (e.clientY - panDrag.startY) });
@@ -265,6 +300,9 @@ export function Canvas({ presenting, onExitPresent }: Props) {
   }, [presenting, panDrag, rectSelect, resizeDrag, nodeDrag, toScene, store]);
 
   const onSvgPointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    // Clear any pending (un-promoted) node drag — this was a plain click.
+    pendingNodeDragRef.current = null;
+
     if (presenting) { setPanDrag(null); setNodeDrag(null); return; }
 
     setSnapGuides({});
@@ -292,7 +330,28 @@ export function Canvas({ presenting, onExitPresent }: Props) {
     }
 
     // ── Resize end ──
-    if (resizeDrag) { setResizeDrag(null); setPanDrag(null); setNodeDrag(null); return; }
+    if (resizeDrag) {
+      if (gestureStartSnapshotRef.current) {
+        const mv = nodes.find(n => n.id === resizeDrag.nodeId);
+        if (mv && (mv.w !== resizeDrag.origW || mv.h !== resizeDrag.origH || mv.x !== resizeDrag.origX || mv.y !== resizeDrag.origY)) {
+          store.pushSnapshotToUndo(gestureStartSnapshotRef.current);
+        }
+      }
+      setResizeDrag(null); setPanDrag(null); setNodeDrag(null);
+      return;
+    }
+
+    // ── Drag end ──
+    if (nodeDrag) {
+      if (gestureStartSnapshotRef.current) {
+        const mv = nodes.find(n => n.id === nodeDrag.nodeId);
+        if (mv && (mv.x !== nodeDrag.originX || mv.y !== nodeDrag.originY)) {
+          store.pushSnapshotToUndo(gestureStartSnapshotRef.current);
+        }
+      }
+      setNodeDrag(null); setPanDrag(null);
+      return;
+    }
 
     // ── Edge endpoint reconnect ──
     if (reconnect) {
@@ -343,11 +402,22 @@ export function Canvas({ presenting, onExitPresent }: Props) {
     const onBorder =
       sc.x < node.x + BORDER || sc.x > node.x + node.w - BORDER ||
       sc.y < node.y + BORDER || sc.y > node.y + node.h - BORDER;
-    (svgRef.current as Element | null)?.setPointerCapture?.(e.pointerId);
     if (onBorder) {
+      // Drafts always need capture immediately (cursor tracking)
+      (svgRef.current as Element | null)?.setPointerCapture?.(e.pointerId);
       setDraft({ fromId: id, fromPort: nearestPort(node, sc.x, sc.y), x: sc.x, y: sc.y });
     } else {
-      setNodeDrag({ nodeId: id, startX: sc.x, startY: sc.y, originX: node.x, originY: node.y });
+      // Defer pointer capture until actual movement. This keeps a plain
+      // click flowing as a normal click on the node (so click → dblclick
+      // fire on the node, not on the captured SVG).
+      pendingNodeDragRef.current = {
+        pointerId: e.pointerId,
+        nodeId: id,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startX: sc.x, startY: sc.y,
+        originX: node.x, originY: node.y,
+      };
     }
   }, [presenting, nodes, toScene]);
 
@@ -376,14 +446,54 @@ export function Canvas({ presenting, onExitPresent }: Props) {
     if (!node) return;
     (svgRef.current as Element | null)?.setPointerCapture?.(e.pointerId);
     store.setSelection({ type: 'node', id });
+    gestureStartSnapshotRef.current = store.getSnapshot();
     setResizeDrag({ nodeId: id, handle, startSX: sc.x, startSY: sc.y, origX: node.x, origY: node.y, origW: node.w, origH: node.h });
   }, [presenting, store, toScene]);
 
-  // ── Keyboard: delete, tool shortcuts ──
+  // ── Keyboard: shortcuts (undo, redo, clipboard, delete) ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((document.activeElement as HTMLElement)?.isContentEditable) return;
       if (document.activeElement?.tagName === 'INPUT') return;
+      if (document.activeElement?.tagName === 'TEXTAREA') return;
+
+      // Undo / Redo
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          store.redo();
+        } else {
+          store.undo();
+        }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault();
+        store.redo();
+        return;
+      }
+
+      // Clipboard shortcuts
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        store.copySelection();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'x' || e.key === 'X')) {
+        e.preventDefault();
+        store.cutSelection();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        store.pasteSelection();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        store.duplicateSelection();
+        return;
+      }
 
       // Tool shortcuts
       if (e.key === 'v' || e.key === 'V') { store.setTool('select'); return; }
@@ -396,11 +506,61 @@ export function Canvas({ presenting, onExitPresent }: Props) {
       e.preventDefault();
       if      (selection.type === 'node')  store.deleteNode(selection.id);
       else if (selection.type === 'edge')  store.deleteEdge(selection.id);
-      else if (selection.type === 'multi') selection.ids.forEach(id => store.deleteNode(id));
+      else if (selection.type === 'multi') store.deleteNodes(selection.ids);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [store]);
+
+  // ── Context menu click-away closer ──
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleClose = (e: Event) => {
+      const target = e.target as Element;
+      if (target && target.closest('.context-menu')) return;
+      setContextMenu(null);
+    };
+    window.addEventListener('pointerdown', handleClose);
+    return () => {
+      window.removeEventListener('pointerdown', handleClose);
+    };
+  }, [contextMenu]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (presenting) return;
+    e.preventDefault();
+
+    // Check if right-clicked a node or edge
+    const nodeEl = (e.target as Element).closest('.node-group');
+    const edgeEl = (e.target as Element).closest('.edge-group');
+
+    if (nodeEl) {
+      const id = nodeEl.getAttribute('data-id');
+      if (id) {
+        const currentSel = store.selection;
+        if (currentSel?.type === 'multi' && currentSel.ids.includes(id)) {
+          // Keep selection
+        } else {
+          store.setSelection({ type: 'node', id });
+        }
+      }
+    } else if (edgeEl) {
+      const id = edgeEl.getAttribute('data-id');
+      if (id) {
+        store.setSelection({ type: 'edge', id });
+      }
+    } else {
+      store.setSelection(null);
+    }
+
+    const sceneCoords = toScene(e.clientX, e.clientY);
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      sceneX: sceneCoords.x,
+      sceneY: sceneCoords.y
+    });
+  }, [presenting, toScene, store]);
 
   // ── Fit-view trigger from TopBar ──
   const { fitViewTrigger } = store;
@@ -409,9 +569,18 @@ export function Canvas({ presenting, onExitPresent }: Props) {
   // ── Node inline editor ──
   const handleNodeDoubleClick = useCallback((id: string) => {
     if (presenting) return;
+    // Prevent the onBlur guard from closing the editor the instant it opens.
+    // Click events still in-flight after the double-click briefly steal focus;
+    // this 350 ms window lets the editor settle before we honour any blur.
+    justOpenedNodeEditorRef.current = true;
+    window.setTimeout(() => { justOpenedNodeEditorRef.current = false; }, 350);
+    const node = nodes.find(n => n.id === id);
+    if (node) {
+      initialNodeHeightRef.current = node.h;
+    }
     setEditingNodeId(id);
     store.setSelection({ type: 'node', id });
-  }, [presenting, store]);
+  }, [presenting, nodes, store]);
 
   useEffect(() => {
     if (!editingNodeId || !editorRef.current) return;
@@ -424,7 +593,11 @@ export function Canvas({ presenting, onExitPresent }: Props) {
 
   const saveNodeEdit = useCallback(() => {
     if (!editingNodeId || !editorRef.current) return;
-    store.updateNode(editingNodeId, { labelHtml: editorRef.current.innerHTML });
+    const node = store.nodes.find(n => n.id === editingNodeId);
+    if (node && node.labelHtml !== editorRef.current.innerHTML) {
+      store.pushToUndo();
+      store.updateNode(editingNodeId, { labelHtml: editorRef.current.innerHTML });
+    }
     setEditingNodeId(null);
   }, [editingNodeId, store]);
 
@@ -454,7 +627,11 @@ export function Canvas({ presenting, onExitPresent }: Props) {
 
   const saveEdgeLabel = useCallback(() => {
     if (!editingEdgeLabelId || !edgeLabelRef.current) return;
-    store.updateEdge(editingEdgeLabelId, { label: edgeLabelRef.current.value.trim() || undefined });
+    const edge = store.edges.find(e => e.id === editingEdgeLabelId);
+    const newVal = edgeLabelRef.current.value.trim() || undefined;
+    if (edge && edge.label !== newVal) {
+      store.updateEdge(editingEdgeLabelId, { label: newVal });
+    }
     setEditingEdgeLabelId(null);
   }, [editingEdgeLabelId, store]);
 
@@ -498,9 +675,11 @@ export function Canvas({ presenting, onExitPresent }: Props) {
       onDrop={onDrop}
       onMouseMove={onWrapMouseMove}
       onMouseDown={onWrapMouseDown}
+      onContextMenu={handleContextMenu}
       onClick={(e) => {
         if (!presenting) {
           if (e.detail > 1) return;
+          if (justOpenedNodeEditorRef.current) return;
           if (editingNodeId)      saveNodeEdit();
           if (editingEdgeLabelId) saveEdgeLabel();
         }
@@ -509,25 +688,12 @@ export function Canvas({ presenting, onExitPresent }: Props) {
       <div className="canvas-floor"/>
 
       <svg
+        id="vizen-svg-canvas"
         ref={svgRef}
         className="canvas-svg"
         onPointerDown={onSvgPointerDown}
         onPointerMove={onSvgPointerMove}
         onPointerUp={onSvgPointerUp}
-        onDoubleClick={(e) => {
-          if (presenting) return;
-          const sc = toScene(e.clientX, e.clientY);
-          // Hit-test: find the topmost node containing this point
-          const state = useDiagramStore.getState();
-          // Iterate in reverse so topmost (last-rendered) node wins
-          for (let i = state.nodes.length - 1; i >= 0; i--) {
-            const nd = state.nodes[i];
-            if (sc.x >= nd.x && sc.x <= nd.x + nd.w && sc.y >= nd.y && sc.y <= nd.y + nd.h) {
-              handleNodeDoubleClick(nd.id);
-              return;
-            }
-          }
-        }}
       >
         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
           {/* ── Snap alignment guides ── */}
@@ -615,31 +781,49 @@ export function Canvas({ presenting, onExitPresent }: Props) {
               <FormatBar onFmt={execNodeFmt} extended/>
               <span className="nie-hint-kbd">Esc · Ctrl+↵</span>
             </div>
-            {/* Editor body — matches node visual */}
+            {/* Editor body — transparent, overlays the node visual */}
             <div
               ref={editorRef}
               contentEditable
               suppressContentEditableWarning
               className="nie-body"
               style={{
-                minHeight: sh,
+                height: sh,
                 borderRadius: br,
-                background: c.fill,
-                border: `1.5px solid ${c.edge}`,
+                background: 'transparent',
+                border: 'none',
+                boxShadow: 'none',
                 color: c.color,
                 fontSize: fs,
-                paddingTop: editingNode.big ? Math.max(8, 14 * zoom) : 8,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingLeft: 10 * zoom,
+                paddingRight: 10 * zoom,
+                paddingTop: editingNode.big ? 10 * zoom : 0,
+                paddingBottom: 0,
+                boxSizing: 'border-box',
               }}
               onInput={() => {
                 if (!editorRef.current) return;
                 const el = editorRef.current;
-                el.style.minHeight = '0';
+                const prevHeight = el.style.height;
+                el.style.height = 'auto';
                 const contentH = el.scrollHeight;
-                el.style.minHeight = '';
-                const sceneH = Math.max(36, Math.ceil(contentH / zoom) + 12);
+                el.style.height = prevHeight;
+                const sceneH = Math.max(initialNodeHeightRef.current, Math.ceil(contentH / zoom) + 4);
                 store.updateNode(editingNode.id, { h: sceneH });
               }}
-              onBlur={saveNodeEdit}
+              onBlur={() => {
+                if (justOpenedNodeEditorRef.current) {
+                  // Editor just opened — spurious blur from the same gesture.
+                  // Re-claim focus on the next frame instead of saving/closing.
+                  requestAnimationFrame(() => editorRef.current?.focus());
+                  return;
+                }
+                saveNodeEdit();
+              }}
               onKeyDown={e => {
                 if (e.key === 'Escape')                             { e.preventDefault(); saveNodeEdit(); }
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveNodeEdit(); }
@@ -723,6 +907,110 @@ export function Canvas({ presenting, onExitPresent }: Props) {
       {ripples.map(r => (
         <div key={r.id} className="laser-ripple" style={{ left: r.x, top: r.y }}/>
       ))}
+
+      {/* ── Context Menu ── */}
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onContextMenu={e => e.preventDefault()}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            className="context-menu-item"
+            disabled={!selection}
+            onClick={() => { if (selection) { store.copySelection(); } setContextMenu(null); }}
+          >
+            <div className="context-menu-item-left">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy</span>
+            </div>
+            <span className="context-menu-kbd">Ctrl+C</span>
+          </button>
+
+          <button
+            className="context-menu-item"
+            disabled={!selection}
+            onClick={() => { if (selection) { store.cutSelection(); } setContextMenu(null); }}
+          >
+            <div className="context-menu-item-left">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+              <span>Cut</span>
+            </div>
+            <span className="context-menu-kbd">Ctrl+X</span>
+          </button>
+
+          <button
+            className="context-menu-item"
+            disabled={!clipboard}
+            onClick={() => { if (clipboard) { store.pasteSelection({ x: contextMenu.sceneX, y: contextMenu.sceneY }); } setContextMenu(null); }}
+          >
+            <div className="context-menu-item-left">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+              <span>Paste</span>
+            </div>
+            <span className="context-menu-kbd">Ctrl+V</span>
+          </button>
+
+          <button
+            className="context-menu-item"
+            disabled={!selection}
+            onClick={() => { if (selection) { store.duplicateSelection(); } setContextMenu(null); }}
+          >
+            <div className="context-menu-item-left">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="9" width="12" height="12" rx="2" ry="2"/><rect x="9" y="3" width="12" height="12" rx="2" ry="2"/></svg>
+              <span>Duplicate</span>
+            </div>
+            <span className="context-menu-kbd">Ctrl+D</span>
+          </button>
+
+          <div className="context-menu-sep" />
+
+          <button
+            className="context-menu-item"
+            disabled={!selection || selection.type === 'edge'}
+            onClick={() => { if (selection) { store.bringToFront(); } setContextMenu(null); }}
+          >
+            <div className="context-menu-item-left">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              <span>Bring to Front</span>
+            </div>
+          </button>
+
+          <button
+            className="context-menu-item"
+            disabled={!selection || selection.type === 'edge'}
+            onClick={() => { if (selection) { store.sendToBack(); } setContextMenu(null); }}
+          >
+            <div className="context-menu-item-left">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><line x1="2" y1="17" x2="22" y2="17"/><line x1="2" y1="22" x2="22" y2="22"/></svg>
+              <span>Send to Back</span>
+            </div>
+          </button>
+
+          <div className="context-menu-sep" />
+
+          <button
+            className="context-menu-item"
+            disabled={!selection}
+            style={{ color: 'var(--accent-coral)' }}
+            onClick={() => {
+              if (selection) {
+                if (selection.type === 'node') store.deleteNode(selection.id);
+                else if (selection.type === 'edge') store.deleteEdge(selection.id);
+                else if (selection.type === 'multi') store.deleteNodes(selection.ids);
+              }
+              setContextMenu(null);
+            }}
+          >
+            <div className="context-menu-item-left">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-coral)' }}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              <span>Delete</span>
+            </div>
+            <span className="context-menu-kbd" style={{ color: 'var(--accent-coral)', opacity: 0.8 }}>Del</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

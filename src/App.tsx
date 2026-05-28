@@ -11,7 +11,12 @@ import './styles/app.css';
 export function App() {
   const [presenting, setPresenting] = useState(false);
   const selection = useDiagramStore(s => s.selection);
+  const title = useDiagramStore(s => s.title);
   const showInspector = selection?.type === 'node' || selection?.type === 'edge';
+
+  useEffect(() => {
+    document.title = `Vizen - ${title || 'Untitled'}`;
+  }, [title]);
 
   const exitPresent = useCallback(() => {
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});

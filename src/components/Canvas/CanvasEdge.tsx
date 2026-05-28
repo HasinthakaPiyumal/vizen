@@ -127,9 +127,12 @@ export function CanvasEdge({ edge, nodes, flow, selected, onSelect, onLabelDoubl
   const labelW = Math.max(40, (edge.label?.length ?? 0) * 6.5 + 16);
 
   return (
-    <g style={{ cursor: 'pointer' }}
+    <g className="edge-group"
+       data-id={edge.id}
+       style={{ cursor: 'pointer' }}
        onPointerDown={e => { e.stopPropagation(); onSelect(); }}
-       onClick={e => e.stopPropagation()}>
+       onClick={e => e.stopPropagation()}
+       onDoubleClick={e => { e.stopPropagation(); onLabelDoubleClick?.(edge.id, labelXY[0], labelXY[1]); }}>
       {/* Selection halo */}
       {selected && (
         <path d={d} fill="none" stroke="#7b9fff" strokeWidth={7} strokeOpacity={0.18}
@@ -191,6 +194,10 @@ export function CanvasEdge({ edge, nodes, flow, selected, onSelect, onLabelDoubl
       {/* Animated flow particles */}
       {active && [0, 1, 2].map(i => (
         <circle key={i} r={4} fill={color}
+          className="flow-particle"
+          data-edge-id={edge.id}
+          data-dur={dur}
+          data-delay={(i * +dur / 3).toFixed(2)}
           style={{
             offsetPath: `path('${d}')`,
             offsetRotate: '0deg',

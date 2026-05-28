@@ -63,3 +63,16 @@ export interface ConnectionDraft {
   x: number;
   y: number;
 }
+
+export interface Snapshot {
+  title: string;
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+  steps: Step[];
+  stepIdx: number;
+}
+
+export interface ClipboardData {
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+}

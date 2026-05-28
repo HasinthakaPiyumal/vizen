@@ -90,6 +90,8 @@ export function CanvasNode({
 
   return (
     <g
+      className="node-group"
+      data-id={n.id}
       style={{ cursor: gCursor, animation: 'node-enter 0.2s ease-out both' }}
       onPointerDown={handlePointerDown}
       onPointerEnter={() => setHovered(true)}
@@ -97,13 +99,53 @@ export function CanvasNode({
       onClick={e => { e.stopPropagation(); if (!editing) onSelect(); }}
       /* dblclick handled via pointerdown timing — see handlePointerDown */
     >
-      {/* Body */}
-      <rect x={n.x} y={n.y} width={n.w} height={n.h} rx={big ? 12 : 9}
-            fill={c.fill} stroke={c.edge} strokeWidth={1.5}
-            style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))' }}/>
+      {/* Shape Body */}
+      {(() => {
+        const commonProps = {
+          fill: c.fill,
+          stroke: c.edge,
+          strokeWidth: 1.5,
+          style: { filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))' }
+        };
 
-      {/* Accent bar (big nodes) */}
-      {big && <rect x={n.x} y={n.y} width={n.w} height={4} rx={2} fill={c.color} opacity={0.8}/>}
+        if (n.type === 'circle') {
+          return (
+            <ellipse
+              cx={n.x + n.w / 2}
+              cy={n.y + n.h / 2}
+              rx={n.w / 2}
+              ry={n.h / 2}
+              {...commonProps}
+            />
+          );
+        }
+
+        if (n.type === 'diamond') {
+          return (
+            <polygon
+              points={`${n.x + n.w / 2},${n.y} ${n.x + n.w},${n.y + n.h / 2} ${n.x + n.w / 2},${n.y + n.h} ${n.x},${n.y + n.h / 2}`}
+              {...commonProps}
+            />
+          );
+        }
+
+        if (n.type === 'text') {
+          return null;
+        }
+
+        return (
+          <rect
+            x={n.x}
+            y={n.y}
+            width={n.w}
+            height={n.h}
+            rx={big ? 12 : 9}
+            {...commonProps}
+          />
+        );
+      })()}
+
+
 
       {/* Label — hidden while in-place editor is active */}
       {!editing && (

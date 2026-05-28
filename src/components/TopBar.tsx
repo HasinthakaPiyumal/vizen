@@ -1,7 +1,10 @@
 import { useRef, useState, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { VizenWordmark } from './Brand';
-import { IcPresent, IcCursor, IcHand, IcZoomIn, IcZoomOut, IcFit } from './Icons';
+import { IcPresent, IcCursor, IcHand, IcZoomIn, IcZoomOut, IcFit, IcUndo, IcRedo } from './Icons';
 import { useDiagramStore } from '../store/useDiagramStore';
+import { AiAssistModal } from './AiAssistModal';
+import { exportToPNG, exportToHTML, exportToVideo } from '../utils/exporters';
 
 interface Props {
   presenting: boolean;
@@ -55,8 +58,15 @@ function ShortcutsModal({ onClose }: { onClose: () => void }) {
 }
 
 function HamburgerMenu({
-  onNew, onSave, onOpenFile,
-}: { onNew: () => void; onSave: () => void; onOpenFile: () => void }) {
+  onNew, onSave, onOpenFile, onExportPNG, onExportHTML, onExportVideo,
+}: {
+  onNew: () => void;
+  onSave: () => void;
+  onOpenFile: () => void;
+  onExportPNG: () => void;
+  onExportHTML: () => void;
+  onExportVideo: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -106,6 +116,31 @@ function HamburgerMenu({
             </button>
 
             <div className="ham-sep"/>
+            <div className="ham-group-label">Export</div>
+            <button className="ham-item" onClick={() => act(onExportPNG)}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              Export as PNG Image
+            </button>
+            <button className="ham-item" onClick={() => act(onExportHTML)}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 18 22 12 16 6"/>
+                <polyline points="8 6 2 12 8 18"/>
+              </svg>
+              Export as HTML Viewer
+            </button>
+            <button className="ham-item" onClick={() => act(onExportVideo)}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="23 7 16 12 23 17 23 7"/>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+              </svg>
+              Export as WebM Video
+            </button>
+
+            <div className="ham-sep"/>
             <div className="ham-group-label">Help</div>
 
             <button className="ham-item" onClick={() => { setShowShortcuts(true); setOpen(false); }}>
@@ -135,8 +170,57 @@ function HamburgerMenu({
 }
 
 export function TopBar({ presenting, onPresent }: Props) {
-  const { title, nodes, edges, tool, zoom, setTool, setZoom, triggerFitView, setTitle, resetDiagram } = useDiagramStore();
+  const { title, nodes, edges, tool, zoom, setTool, setZoom, triggerFitView, setTitle, resetDiagram, past, future, undo, redo } = useDiagramStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showAiAssist, setShowAiAssist] = useState(false);
+  const [recordingProgress, setRecordingProgress] = useState<number | null>(null);
+
+  const getSvgEl = () => document.getElementById('vizen-svg-canvas') as SVGSVGElement | null;
+
+  const handleExportPNG = () => {
+    const svgEl = getSvgEl();
+    if (svgEl) {
+      exportToPNG(svgEl, nodes, title);
+    } else {
+      alert('Canvas SVG not found.');
+    }
+  };
+
+  const handleExportHTML = () => {
+    const svgEl = getSvgEl();
+    if (svgEl) {
+      const state = useDiagramStore.getState();
+      exportToHTML(svgEl, nodes, edges, state.steps, title);
+    } else {
+      alert('Canvas SVG not found.');
+    }
+  };
+
+  const handleExportVideo = () => {
+    const svgEl = getSvgEl();
+    if (!svgEl) {
+      alert('Canvas SVG not found.');
+      return;
+    }
+    const state = useDiagramStore.getState();
+    if (state.steps.length === 0) {
+      alert('No steps to export.');
+      return;
+    }
+    setRecordingProgress(0);
+    exportToVideo(
+      svgEl,
+      nodes,
+      state.steps,
+      {
+        stepIdx: useDiagramStore.getState().stepIdx,
+        setStepIdx: (idx) => flushSync(() => useDiagramStore.setState({ stepIdx: idx })),
+      },
+      title,
+      (progress) => setRecordingProgress(progress),
+      () => setRecordingProgress(null)
+    );
+  };
 
   const handleNew = () => {
     if (nodes.length > 0 || edges.length > 0) {
@@ -152,7 +236,7 @@ export function TopBar({ presenting, onPresent }: Props) {
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = `${(t || 'untitled').toLowerCase().replace(/\s+/g, '-')}.vizen.json`;
+    a.download = `${(t || 'untitled').toLowerCase().replace(/\s+/g, '-')}.vz`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -172,6 +256,7 @@ export function TopBar({ presenting, onPresent }: Props) {
           stepIdx: parsed.stepIdx ?? 0,
           selection: null,
         });
+        triggerFitView();
       } catch {
         alert('Could not read file — invalid format.');
       }
@@ -190,8 +275,11 @@ export function TopBar({ presenting, onPresent }: Props) {
           onNew={handleNew}
           onSave={handleSave}
           onOpenFile={() => fileInputRef.current?.click()}
+          onExportPNG={handleExportPNG}
+          onExportHTML={handleExportHTML}
+          onExportVideo={handleExportVideo}
         />
-        <input ref={fileInputRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleOpen}/>
+        <input ref={fileInputRef} type="file" accept=".vz" style={{ display: 'none' }} onChange={handleOpen}/>
         <div className="tb-div"/>
         <VizenWordmark size={15}/>
         <div className="tb-div"/>
@@ -229,6 +317,18 @@ export function TopBar({ presenting, onPresent }: Props) {
 
         <div className="tb-div"/>
 
+        {/* Undo/Redo controls */}
+        <div className="tb-zoom-group" style={{ marginRight: 6 }}>
+          <button className="icon-btn" title="Undo (Ctrl+Z)" onClick={undo} disabled={past.length === 0}>
+            <IcUndo size={13}/>
+          </button>
+          <button className="icon-btn" title="Redo (Ctrl+Y)" onClick={redo} disabled={future.length === 0}>
+            <IcRedo size={13}/>
+          </button>
+        </div>
+
+        <div className="tb-div"/>
+
         {/* Zoom controls */}
         <div className="tb-zoom-group">
           <button className="icon-btn" title="Zoom out" onClick={() => setZoom(Math.max(0.15, zoom - 0.25))}>
@@ -245,8 +345,20 @@ export function TopBar({ presenting, onPresent }: Props) {
         </div>
       </div>
 
-      {/* ── RIGHT: Present + Avatar ── */}
+      {/* ── RIGHT: AI Assist + Present + Avatar ── */}
       <div className="group">
+        <button
+          className="btn"
+          onClick={() => setShowAiAssist(true)}
+          title="AI Assist — generate diagram changes with AI"
+          style={{ gap: 6, borderColor: 'rgba(167,139,250,0.3)', color: '#a78bfa' }}
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8L8 1z"
+                  stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill="rgba(167,139,250,0.15)"/>
+          </svg>
+          <span>AI Assist</span>
+        </button>
         <button
           className="btn primary"
           onClick={onPresent}
@@ -257,6 +369,22 @@ export function TopBar({ presenting, onPresent }: Props) {
         </button>
         <div className="avatar">V</div>
       </div>
+
+      {showAiAssist && <AiAssistModal onClose={() => setShowAiAssist(false)}/>}
+
+      {recordingProgress !== null && (
+        <div className="export-overlay">
+          <div className="export-panel">
+            <div className="export-spinner" />
+            <div className="export-title">Exporting WebM Video</div>
+            <div className="export-progress-bar-wrap">
+              <div className="export-progress-bar" style={{ width: `${recordingProgress}%` }} />
+            </div>
+            <div className="export-percent">{Math.round(recordingProgress)}%</div>
+            <div className="export-hint">Please keep this tab active while rendering...</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
