@@ -1,20 +1,111 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vizen - Architecture Diagrams</title>
+
+    <!-- Primary SEO Meta Tags -->
+    <title>Vizen — Free Architecture Diagram & Visualization Tool for Developers</title>
+    <meta name="description" content="Vizen is a free, open-source architecture diagramming and step-by-step visualization tool for developers, architects, and educators. Create stunning system diagrams with drag-and-drop, presentation mode, AI assist, and high-quality PNG/WebM exports." />
+    <meta name="keywords" content="architecture diagram tool, system design visualization, free diagram maker, software architecture, diagramming tool, developer tools, flowchart creator, open source diagram, presentation mode, AI diagram generator, Vizen" />
+    <meta name="author" content="Hasinthaka Piyumal" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://vizen.vercel.app/" />
+
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#0a0a0f" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://vizen.vercel.app/" />
+    <meta property="og:title" content="Vizen — Free Architecture Diagram & Visualization Tool" />
+    <meta property="og:description" content="Create stunning architecture diagrams with drag-and-drop editing, step-by-step presentation mode, AI assist, and high-quality exports. Free & open-source." />
+    <meta property="og:image" content="https://vizen.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Vizen architecture diagramming tool interface preview" />
+    <meta property="og:site_name" content="Vizen" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://vizen.vercel.app/" />
+    <meta name="twitter:title" content="Vizen — Free Architecture Diagram & Visualization Tool" />
+    <meta name="twitter:description" content="Create stunning architecture diagrams with drag-and-drop editing, step-by-step presentation mode, AI assist, and high-quality exports. Free & open-source." />
+    <meta name="twitter:image" content="https://vizen.vercel.app/og-image.png" />
+    <meta name="twitter:image:alt" content="Vizen architecture diagramming tool interface preview" />
+
+    <!-- Favicons -->
     <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="Vizen" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Preconnect & Font Loading -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700;800&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Vizen",
+        "url": "https://vizen.vercel.app/",
+        "description": "A free, open-source architecture diagramming and step-by-step visualization tool for developers, architects, and educators.",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Web",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Person",
+          "name": "Hasinthaka Piyumal",
+          "url": "https://github.com/HasinthakaPiyumal"
+        },
+        "license": "https://opensource.org/licenses/MIT",
+        "screenshot": "https://vizen.vercel.app/og-image.png",
+        "featureList": [
+          "Drag-and-drop architecture diagramming",
+          "Step-by-step presentation mode",
+          "AI-assisted diagram generation",
+          "High-quality PNG and WebM exports",
+          "Interactive canvas with laser pointer mode",
+          "Rich text node editing",
+          "Dark mode interface"
+        ],
+        "softwareVersion": "0.1.0",
+        "isAccessibleForFree": true
+      }
+    </script>
   </head>
   <body>
+    <!-- Noscript fallback for SEO crawlers and accessibility -->
+    <noscript>
+      <div style="padding: 2rem; font-family: sans-serif; max-width: 800px; margin: 0 auto;">
+        <h1>Vizen — Architecture Diagram & Visualization Tool</h1>
+        <p>Vizen is a free, open-source architecture diagramming and step-by-step visualization tool built for developers, architects, and educators.</p>
+        <h2>Key Features</h2>
+        <ul>
+          <li>Drag-and-drop interactive canvas for building architecture diagrams</li>
+          <li>Step-by-step presentation mode with timeline controls</li>
+          <li>AI-assisted diagram generation and node creation</li>
+          <li>High-quality PNG and WebM video exports</li>
+          <li>Advanced laser pointer mode for presentations</li>
+          <li>Rich text formatting for nodes (bold, italic, code, headings)</li>
+          <li>Dark mode design with glassmorphism styling</li>
+        </ul>
+        <p>Please enable JavaScript to use Vizen.</p>
+      </div>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

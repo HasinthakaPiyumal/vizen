@@ -15,7 +15,9 @@ export function App() {
   const showInspector = selection?.type === 'node' || selection?.type === 'edge';
 
   useEffect(() => {
-    document.title = `Vizen - ${title || 'Untitled'}`;
+    document.title = title
+      ? `${title} — Vizen Architecture Diagrams`
+      : 'Vizen — Free Architecture Diagram & Visualization Tool';
   }, [title]);
 
   const exitPresent = useCallback(() => {
