@@ -69,10 +69,34 @@ Defines animated particles flowing along an edge during a step.
 | color  | string | No       | Override color for the flow (defaults to edge color). |
 | speed  | number | No       | Animation speed multiplier (default 1). |
 
-## Layout Tips
-- Nodes are positioned via x, y coordinates. Space them ~160-200 units apart horizontally and ~120-150 vertically.
-- Typical node sizes: w=130, h=56 for normal; w=150, h=100 for big nodes.
-- Edge routing is automatic based on node positions (bezier curves).
+## Layout & Spacing Rules (CRITICAL — follow these strictly)
+
+### Node Spacing
+- **Horizontal gap**: Space connected nodes **250–350 units apart** horizontally. The longer the edge label text, the more spacing is needed so the label doesn't overlap nodes.
+- **Vertical gap**: Use **150–250 units** of vertical spacing between rows of nodes.
+- Typical node sizes: w=130–180, h=56 for normal; w=180–220, h=100–120 for big nodes.
+
+### Staggered / Zigzag Layout
+- Do NOT place all nodes in a single horizontal line. Instead, **alternate nodes between upper and lower Y positions** to create a natural zigzag flow. For example:
+  - Node A at y=100, Node B at y=300, Node C at y=100, Node D at y=300
+  - This creates a visually appealing flow where edges curve between rows.
+- For top-to-bottom flows, stagger nodes left and right on alternating rows.
+- Group related nodes at similar Y coordinates, but offset the next group to a different Y level.
+
+### Canvas Utilization
+- **Spread nodes across the full canvas.** Do not cluster everything in a small area.
+- Use the full coordinate space: x from 0 to 1200+, y from 0 to 800+ depending on diagram complexity.
+- For diagrams with many steps/phases, lay them out in a flowing S-curve or zigzag pattern across the canvas.
+- Leave breathing room — empty space between node groups improves readability.
+
+### Edge Labels
+- When an edge has a long label (e.g. "Vector Embeddings", "HTTPS Request"), increase the distance between the connected nodes to **300–400 units** so the label renders clearly in the middle without overlapping.
+- Edge routing is automatic bezier curves based on node positions.
+
+### Steps Layout
+- If the diagram has many presentation steps, organize the nodes so that early steps are on the **left/top** and later steps flow to the **right/bottom**.
+- This way, stepping through the presentation feels like a natural left-to-right or top-to-bottom progression.
+
 - Use unique IDs for all nodes, edges, and steps.
 `.trim();
 
@@ -81,32 +105,60 @@ function buildNewPrompt(userRequest: string): string {
 
 ${SCHEMA_DOCS}
 
-## Example Vizen Diagram JSON structure
+## Example Vizen Diagram JSON structure (note the staggered Y positions and generous spacing)
 \`\`\`json
 {
   "title": "Example Architecture",
   "nodes": [
-    { "id": "user", "type": "circle", "label": "Client / User", "sub": "Web Browser", "x": 100, "y": 150, "w": 120, "h": 56, "accent": "blue" },
-    { "id": "api", "type": "rect", "label": "API Gateway", "sub": "Reverse Proxy", "x": 300, "y": 150, "w": 130, "h": 56, "accent": "violet" },
-    { "id": "db", "type": "diamond", "label": "PostgreSQL DB", "sub": "Database", "x": 500, "y": 150, "w": 130, "h": 80, "accent": "mint" }
+    { "id": "user", "type": "circle", "label": "Client / User", "sub": "Web Browser", "x": 80, "y": 120, "w": 130, "h": 56, "accent": "blue" },
+    { "id": "api", "type": "rect", "label": "API Gateway", "sub": "Reverse Proxy", "x": 420, "y": 320, "w": 150, "h": 56, "accent": "violet" },
+    { "id": "cache", "type": "rect", "label": "Redis Cache", "sub": "In-Memory Store", "x": 780, "y": 100, "w": 150, "h": 56, "accent": "coral" },
+    { "id": "db", "type": "diamond", "label": "PostgreSQL DB", "sub": "Database", "x": 1100, "y": 320, "w": 160, "h": 80, "accent": "mint" }
   ],
   "edges": [
     { "id": "edge_user_api", "from": "user", "to": "api", "label": "HTTPS Request", "defaultColor": "#7b9fff", "lineType": "solid", "arrowHead": true },
+    { "id": "edge_api_cache", "from": "api", "to": "cache", "label": "Check Cache", "defaultColor": "#f97316", "lineType": "dashed", "arrowHead": true },
     { "id": "edge_api_db", "from": "api", "to": "db", "label": "SQL Query", "defaultColor": "#a78bfa", "lineType": "dashed", "arrowHead": true }
   ],
   "steps": [
     {
       "id": "step_0",
-      "passLabel": "OVERVIEW",
+      "passLabel": "REQUEST",
       "passColor": "#7b9fff",
       "taskEmoji": "🚀",
-      "taskName": "Initial Setup",
+      "taskName": "Client Request",
       "task": 0,
       "lit": ["user", "api"],
       "flows": [
         { "edgeId": "edge_user_api", "speed": 1 }
       ],
       "desc": "The client sends an HTTPS request to the <strong>API Gateway</strong>."
+    },
+    {
+      "id": "step_1",
+      "passLabel": "PROCESSING",
+      "passColor": "#f97316",
+      "taskEmoji": "⚡",
+      "taskName": "Cache Lookup",
+      "task": 1,
+      "lit": ["api", "cache"],
+      "flows": [
+        { "edgeId": "edge_api_cache", "speed": 1.2 }
+      ],
+      "desc": "The API gateway checks <strong>Redis Cache</strong> before hitting the database."
+    },
+    {
+      "id": "step_2",
+      "passLabel": "DATA",
+      "passColor": "#a78bfa",
+      "taskEmoji": "💾",
+      "taskName": "Database Query",
+      "task": 2,
+      "lit": ["api", "db"],
+      "flows": [
+        { "edgeId": "edge_api_db", "speed": 0.8 }
+      ],
+      "desc": "On cache miss, the API queries <strong>PostgreSQL</strong> directly."
     }
   ],
   "stepIdx": 0
@@ -117,7 +169,14 @@ ${SCHEMA_DOCS}
 Create a new diagram based on: ${userRequest}
 
 ## Instructions
-Based on the user's request, generate a COMPLETE diagram JSON matching the Vizen schema. Return ONLY the raw JSON object (no markdown code fences, no explanations). The JSON must be valid and follow the Vizen schema exactly. Ensure all node/edge IDs referenced in steps actually exist in the nodes/edges arrays.`;
+Based on the user's request, generate a COMPLETE diagram JSON matching the Vizen schema. Return ONLY the raw JSON object (no markdown code fences, no explanations). The JSON must be valid and follow the Vizen schema exactly. Ensure all node/edge IDs referenced in steps actually exist in the nodes/edges arrays.
+
+## CRITICAL Layout Requirements
+- **SPREAD nodes across the canvas** — use x values from 0 to 1200+ and y values from 0 to 800+. Do NOT cluster all nodes in a small 500x300 area.
+- **STAGGER node Y positions** in a zigzag pattern (alternating between upper row ~100-200 and lower row ~300-450) so edges curve beautifully between them.
+- **INCREASE spacing** between nodes that have long edge labels — at least 300-400 units apart so labels don't overlap.
+- **ORDER nodes spatially** to match the step progression: early steps on the left, later steps on the right.
+- Create **multiple presentation steps** (at least 3-5 for complex diagrams) that progressively reveal the architecture flow.`;
 }
 
 function buildUpdatePrompt(userRequest: string, currentDiagram: string): string {
@@ -134,7 +193,13 @@ ${currentDiagram}
 Apply these updates: ${userRequest}
 
 ## Instructions
-Based on the user's request above, modify the current diagram state and generate a COMPLETE updated diagram JSON. You must strictly modify the provided diagram state and return ONLY the raw JSON object (no markdown code fences, no explanations). The JSON must be valid and follow the Vizen schema exactly. Include ALL nodes, edges, and steps — not just the changed ones. Make sure all node/edge IDs referenced in steps actually exist in the nodes/edges arrays.`;
+Based on the user's request above, modify the current diagram state and generate a COMPLETE updated diagram JSON. You must strictly modify the provided diagram state and return ONLY the raw JSON object (no markdown code fences, no explanations). The JSON must be valid and follow the Vizen schema exactly. Include ALL nodes, edges, and steps — not just the changed ones. Make sure all node/edge IDs referenced in steps actually exist in the nodes/edges arrays.
+
+## CRITICAL Layout Requirements (apply when adding/repositioning nodes)
+- **SPREAD nodes across the canvas** — use x values from 0 to 1200+ and y values from 0 to 800+. Do NOT cluster all nodes in a small area.
+- **STAGGER node Y positions** in a zigzag pattern (alternating between upper row ~100-200 and lower row ~300-450) so edges curve beautifully between them.
+- **INCREASE spacing** between nodes that have long edge labels — at least 300-400 units apart.
+- When adding new nodes, place them with adequate spacing from existing nodes (at least 250 units apart) and maintain the zigzag layout pattern.`;
 }
 
 type Stage = 'compose' | 'apply';
