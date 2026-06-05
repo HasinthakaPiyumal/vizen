@@ -8,28 +8,11 @@
 
 ## 🎬 Demo
 
-<!-- ============================================================
-     OPTION A — YouTube video (recommended)
-     1. Upload your demo to YouTube
-     2. Replace YOUR_VIDEO_ID with the actual YouTube video ID
-     3. Replace the thumbnail URL with a real screenshot or
-        use: https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg
-     ============================================================ -->
 
-<!-- [![Watch the Vizen demo](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID) -->
 
-<!-- ============================================================
-     OPTION B — GitHub-hosted video (MP4)
-     1. Open any GitHub Issue or PR in this repo
-     2. Drag & drop your .mp4 file into the comment box
-     3. GitHub will upload it and give you a URL like:
-        https://github.com/user-attachments/assets/xxxx.mp4
-     4. Paste that URL below and uncomment the block
-     ============================================================ -->
+https://github.com/user-attachments/assets/d0da7d6a-24ab-4f38-a0d1-da10295b126d
 
-<!-- <video src="https://github.com/user-attachments/assets/YOUR_VIDEO_FILE.mp4" controls width="100%"></video> -->
 
-> 📹 **Demo video coming soon!** In the meantime, try the [live app](https://vizen-rouge.vercel.app) directly.
 
 ---
 
