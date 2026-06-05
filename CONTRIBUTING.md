@@ -2,7 +2,7 @@
 
 First off — **thank you for considering a contribution!** Vizen is open to contributions from developers of all skill levels. Whether you're fixing a typo, squashing a bug, or building a whole new feature, every contribution is valued and appreciated.
 
-> 🌐 **Live Demo**: [vizen-rouge.vercel.app](https://vizen-rouge.vercel.app)
+> 🌐 **Live Demo**: [vizen-app.vercel.app](https://vizen-app.vercel.app)
 > 📁 **Repository**: [github.com/HasinthakaPiyumal/vizen](https://github.com/HasinthakaPiyumal/vizen)
 
 ---

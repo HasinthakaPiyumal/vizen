@@ -2,7 +2,7 @@
 
 **Vizen** is a free, open-source architecture diagramming and step-by-step visualization tool built for developers, architects, and educators. Powered by React, Vite, TypeScript, and Zustand — Vizen combines an ultra-smooth 60fps interactive canvas with a powerful presentation timeline, AI assist, and high-quality export options.
 
-> 🌐 **Live Demo**: [vizen-rouge.vercel.app](https://vizen-rouge.vercel.app)
+> 🌐 **Live Demo**: [vizen-app.vercel.app](https://vizen-app.vercel.app)
 
 ---
 
