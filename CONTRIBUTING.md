@@ -1,71 +1,128 @@
 # Contributing to Vizen 🪐
 
-Thank you for your interest in contributing to Vizen! We welcome contributions from developers of all skill levels to help improve the project.
+First off — **thank you for considering a contribution!** Vizen is open to contributions from developers of all skill levels. Whether you're fixing a typo, squashing a bug, or building a whole new feature, every contribution is valued and appreciated.
 
-Please review the guidelines below to ensure a smooth and effective contribution process.
+> 🌐 **Live Demo**: [vizen-rouge.vercel.app](https://vizen-rouge.vercel.app)
+> 📁 **Repository**: [github.com/HasinthakaPiyumal/vizen](https://github.com/HasinthakaPiyumal/vizen)
+
+---
+
+## 🧭 Ways to Contribute
+
+- 🐛 **Report a bug** — [Open an issue](https://github.com/HasinthakaPiyumal/vizen/issues/new)
+- 💡 **Suggest a feature** — [Open an issue](https://github.com/HasinthakaPiyumal/vizen/issues/new) describing your idea
+- 📖 **Improve documentation** — Fix typos, add examples, or clarify confusing sections
+- 🔧 **Submit a fix or feature** — Fork → branch → PR (see workflow below)
 
 ---
 
 ## 🗺️ Contribution Workflow
 
-1. **Fork the Repository**: Create a personal fork of the repository on GitHub.
-2. **Clone Locally**: Clone your fork to your computer:
+1. **Fork the repository** on GitHub:
+   [github.com/HasinthakaPiyumal/vizen → Fork](https://github.com/HasinthakaPiyumal/vizen/fork)
+
+2. **Clone your fork** locally:
    ```bash
    git clone https://github.com/your-username/vizen.git
    cd vizen
    ```
-3. **Set Up Upstream Stream**: Add the original repository as a remote named `upstream`:
+
+3. **Add the upstream remote** so you can sync changes from the original repo:
    ```bash
    git remote add upstream https://github.com/HasinthakaPiyumal/vizen.git
    ```
-4. **Create a Feature Branch**: Branch off from the `main` branch with a descriptive name:
+
+4. **Create a feature branch** off `main` with a descriptive name:
    ```bash
    git checkout -b feat/your-feature-name
    # or
    git checkout -b fix/issue-description
    ```
-5. **Implement Changes**: Write code, update styles, or write documentations.
-6. **Validate Changes**: Run static analysis checks to ensure no TypeScript compilation errors exist:
+
+5. **Install dependencies** and start the dev server:
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+6. **Make your changes** — write code, update styles, or improve docs.
+
+7. **Validate your changes** — run the build to catch any TypeScript errors:
    ```bash
    npm run build
    ```
-7. **Commit & Push**: Commit your changes and push them to your fork:
+
+8. **Commit your changes** using semantic commit messages (see style guide below):
    ```bash
-   git commit -m "feat: description of change"
+   git commit -m "feat: add zoom-to-fit keyboard shortcut"
+   ```
+
+9. **Push to your fork:**
+   ```bash
    git push origin feat/your-feature-name
    ```
-8. **Submit a Pull Request (PR)**: Open a PR from your branch to the original repository's `main` branch.
+
+10. **Open a Pull Request** against the `main` branch of the original repo:
+    [github.com/HasinthakaPiyumal/vizen/pulls](https://github.com/HasinthakaPiyumal/vizen/pulls)
 
 ---
 
 ## 🎨 Coding Guidelines
 
 ### TypeScript & React
-- Keep components focused, reusable, and single-purpose.
-- Prefer functional components and React hooks (`useCallback`, `useMemo`, `useEffect`).
-- Ensure all types are strictly defined in `src/types/index.ts` rather than using `any`.
-- Wrap complex handlers in `useCallback` to prevent unnecessary re-renders of nested SVG components on the canvas.
+- Keep components **focused, reusable, and single-purpose**.
+- Use **functional components** and React hooks (`useCallback`, `useMemo`, `useEffect`).
+- Define all types strictly in `src/types/index.ts` — avoid using `any`.
+- Wrap complex event handlers in `useCallback` to prevent unnecessary re-renders of nested SVG canvas components.
 
 ### Styling & CSS Tokens
-- We use **Vanilla CSS** with a robust token system. Define variables or import them from `src/styles/tokens.css`.
-- Avoid adding inline styles for layouts; instead, use custom layout rules in `src/styles/app.css`.
-- Keep the premium aesthetic in mind: use curated color palettes, transparent glassmorphism gradients, smooth transitions, and high-DPI scaling configurations.
+- We use **Vanilla CSS** with a robust design token system.
+- Always define or import CSS variables from `src/styles/tokens.css`.
+- Use layout rules from `src/styles/app.css` — avoid ad-hoc inline styles for layout.
+- Keep the **premium aesthetic** in mind: curated color palettes, glassmorphism gradients, smooth transitions, and high-DPI scaling.
 
 ---
 
 ## 💬 Commit Message Guidelines
 
-We follow lightweight semantic commit style tags to keep history clean and searchable:
+We follow lightweight semantic commit prefixes to keep history clean and readable:
 
-- `feat:` A new feature or capability.
-- `fix:` A bug fix (e.g., resolving tainted canvas exports).
-- `style:` Changes that do not affect code logic (formatting, color visual tweaks, margins).
-- `refactor:` Code restructuring without changing functional behavior.
-- `docs:` Documentation additions or updates (e.g., editing README).
-- `chore:` Changes to build tools, configurations, or package dependencies.
+| Prefix | When to use |
+|---|---|
+| `feat:` | A new feature or capability |
+| `fix:` | A bug fix |
+| `style:` | Visual/formatting changes that don't affect logic |
+| `refactor:` | Code restructuring without behavior changes |
+| `docs:` | Documentation additions or updates |
+| `chore:` | Build tools, configs, or dependency updates |
+
+**Examples:**
+```bash
+git commit -m "feat: add zoom-to-fit button in BottomBar"
+git commit -m "fix: resolve tainted canvas error on PNG export"
+git commit -m "docs: add contributing workflow to README"
+```
+
+---
+
+## 🔃 Keeping Your Fork Up to Date
+
+Before starting new work, always sync your fork with the latest upstream changes:
+
+```bash
+git fetch upstream
+git checkout main
+git merge upstream/main
+git push origin main
+```
 
 ---
 
 ## 📬 Need Help?
 
-If you encounter any issues, have design feedback, or need help implementing a feature, feel free to open a GitHub Issue or join our discussions. We'd love to help!
+If you're stuck, have questions, or want feedback before submitting a PR, feel free to:
+
+- [Open an issue](https://github.com/HasinthakaPiyumal/vizen/issues/new) with your question
+- Comment on an existing issue you're working on
+
+We're happy to guide you through the codebase. All skill levels are welcome! 🙌
