@@ -155,7 +155,7 @@ export function Canvas({ presenting, onExitPresent }: Props) {
         else if (e.deltaMode === 2) delta *= 800;
 
         delta = Math.max(-120, Math.min(120, delta));
-        const zoomFactor = Math.pow(0.9985, delta);
+        const zoomFactor = Math.pow(0.9978, delta);
         const newZ = Math.max(0.15, Math.min(4, z * zoomFactor));
 
         if (Math.abs(newZ - z) > 0.0001) {
