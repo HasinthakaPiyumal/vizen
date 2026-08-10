@@ -64,7 +64,6 @@ export function CanvasNode({
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (tool === 'pan' || editing) return;
     e.stopPropagation();
-    onSelect();
 
     // Detect double-click via rapid successive pointerdown events
     const now = performance.now();
@@ -80,7 +79,7 @@ export function CanvasNode({
     if (tool === 'select') {
       onDragStart(e, n.id);
     }
-  }, [tool, editing, onSelect, onDragStart, onDoubleClick, n.id]);
+  }, [tool, editing, onDragStart, onDoubleClick, n.id]);
 
   const gCursor = editing
     ? 'default'

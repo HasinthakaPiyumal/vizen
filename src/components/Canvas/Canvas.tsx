@@ -6,8 +6,8 @@ import { ConnectionDraftLine } from './ConnectionDraft';
 import type { ConnectionDraft, DiagramNode, ResizeHandle, Snapshot } from '../../types';
 import { IcCursor } from '../Icons';
 
-interface DragState    { nodeId: string; startX: number; startY: number; originX: number; originY: number }
-interface PendingNodeDrag { pointerId: number; nodeId: string; startClientX: number; startClientY: number; startX: number; startY: number; originX: number; originY: number }
+interface DragState       { nodeId: string; startX: number; startY: number; nodeIds: string[]; origins: Record<string, { x: number; y: number }> }
+interface PendingNodeDrag { pointerId: number; nodeId: string; startClientX: number; startClientY: number; startX: number; startY: number; nodeIds: string[]; origins: Record<string, { x: number; y: number }>; isShift: boolean; wasAlreadySelected: boolean }
 interface Ripple       { id: number; x: number; y: number }
 interface TrailPoint   { x: number; y: number; t: number }
 interface EdgeReconnect { edgeId: string; end: 'from' | 'to'; fixedX: number; fixedY: number }
@@ -230,9 +230,14 @@ export function Canvas({ presenting, onExitPresent }: Props) {
       if (Math.hypot(dx, dy) > 3) {
         (svgRef.current as Element | null)?.setPointerCapture?.(p.pointerId);
         gestureStartSnapshotRef.current = store.getSnapshot();
+        if (p.nodeIds.length > 1) {
+          store.setSelection({ type: 'multi', ids: p.nodeIds });
+        } else if (p.nodeIds.length === 1) {
+          store.setSelection({ type: 'node', id: p.nodeIds[0] });
+        }
         setNodeDrag({
           nodeId: p.nodeId, startX: p.startX, startY: p.startY,
-          originX: p.originX, originY: p.originY,
+          nodeIds: p.nodeIds, origins: p.origins,
         });
         pendingNodeDragRef.current = null;
       } else {
@@ -273,26 +278,34 @@ export function Canvas({ presenting, onExitPresent }: Props) {
       return;
     }
 
-    // ── Move node with alignment snap ──
+    // ── Move node or group of nodes with alignment snap ──
     if (nodeDrag) {
       const SNAP = 8;
-      let nx = nodeDrag.originX + (sc.x - nodeDrag.startX);
-      let ny = nodeDrag.originY + (sc.y - nodeDrag.startY);
+      const anchorOrigin = nodeDrag.origins[nodeDrag.nodeId] ?? { x: 0, y: 0 };
+      const rawDx = sc.x - nodeDrag.startX;
+      const rawDy = sc.y - nodeDrag.startY;
+
+      let nx = anchorOrigin.x + rawDx;
+      let ny = anchorOrigin.y + rawDy;
+
       const state = useDiagramStore.getState();
-      const mv = state.nodes.find(n => n.id === nodeDrag.nodeId);
-      if (mv) {
-        const others = state.nodes.filter(n => n.id !== nodeDrag.nodeId);
-        let guideX: number|undefined, guideY: number|undefined;
+      const anchorNode = state.nodes.find(n => n.id === nodeDrag.nodeId);
+      const draggedSet = new Set(nodeDrag.nodeIds);
+      const unselectedNodes = state.nodes.filter(n => !draggedSet.has(n.id));
+
+      let guideX: number | undefined, guideY: number | undefined;
+
+      if (anchorNode) {
         let bdx = SNAP, bdy = SNAP;
-        for (const o of others) {
+        for (const o of unselectedNodes) {
           for (const ox of [o.x, o.x + o.w / 2, o.x + o.w]) {
-            for (const off of [0, mv.w / 2, mv.w]) {
+            for (const off of [0, anchorNode.w / 2, anchorNode.w]) {
               const d = Math.abs((nx + off) - ox);
               if (d < bdx) { bdx = d; nx = ox - off; guideX = ox; }
             }
           }
           for (const oy of [o.y, o.y + o.h / 2, o.y + o.h]) {
-            for (const off of [0, mv.h / 2, mv.h]) {
+            for (const off of [0, anchorNode.h / 2, anchorNode.h]) {
               const d = Math.abs((ny + off) - oy);
               if (d < bdy) { bdy = d; ny = oy - off; guideY = oy; }
             }
@@ -300,13 +313,55 @@ export function Canvas({ presenting, onExitPresent }: Props) {
         }
         setSnapGuides({ guideX, guideY });
       }
-      store.updateNode(nodeDrag.nodeId, { x: nx, y: ny });
+
+      const finalDx = nx - anchorOrigin.x;
+      const finalDy = ny - anchorOrigin.y;
+
+      const updates = nodeDrag.nodeIds.map(nId => {
+        const orig = nodeDrag.origins[nId] ?? { x: 0, y: 0 };
+        return { id: nId, x: orig.x + finalDx, y: orig.y + finalDy };
+      });
+
+      store.updateNodesPos(updates);
     }
   }, [presenting, panDrag, rectSelect, resizeDrag, nodeDrag, toScene, store]);
 
   const onSvgPointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
-    // Clear any pending (un-promoted) node drag — this was a plain click.
-    pendingNodeDragRef.current = null;
+    // Check if there was a pending drag that was not promoted to active drag (plain click)
+    if (pendingNodeDragRef.current) {
+      const p = pendingNodeDragRef.current;
+      pendingNodeDragRef.current = null;
+
+      if (p.isShift) {
+        const currentSel = store.selection;
+        if (currentSel?.type === 'multi') {
+          const exists = currentSel.ids.includes(p.nodeId);
+          const newIds = exists
+            ? currentSel.ids.filter(id => id !== p.nodeId)
+            : [...currentSel.ids, p.nodeId];
+          if (newIds.length === 0) store.setSelection(null);
+          else if (newIds.length === 1) store.setSelection({ type: 'node', id: newIds[0] });
+          else store.setSelection({ type: 'multi', ids: newIds });
+        } else if (currentSel?.type === 'node') {
+          if (currentSel.id === p.nodeId) store.setSelection(null);
+          else store.setSelection({ type: 'multi', ids: [currentSel.id, p.nodeId] });
+        } else {
+          store.setSelection({ type: 'node', id: p.nodeId });
+        }
+      } else {
+        const clickedNode = nodes.find(n => n.id === p.nodeId);
+        if (clickedNode?.groupId) {
+          const groupNodes = nodes.filter(n => n.groupId === clickedNode.groupId);
+          if (groupNodes.length > 1) {
+            store.setSelection({ type: 'multi', ids: groupNodes.map(n => n.id) });
+          } else {
+            store.setSelection({ type: 'node', id: p.nodeId });
+          }
+        } else {
+          store.setSelection({ type: 'node', id: p.nodeId });
+        }
+      }
+    }
 
     if (presenting) { setPanDrag(null); setNodeDrag(null); return; }
 
@@ -349,8 +404,10 @@ export function Canvas({ presenting, onExitPresent }: Props) {
     // ── Drag end ──
     if (nodeDrag) {
       if (gestureStartSnapshotRef.current) {
-        const mv = nodes.find(n => n.id === nodeDrag.nodeId);
-        if (mv && (mv.x !== nodeDrag.originX || mv.y !== nodeDrag.originY)) {
+        const stateNodes = useDiagramStore.getState().nodes;
+        const anchorNode = stateNodes.find(n => n.id === nodeDrag.nodeId);
+        const anchorOrig = nodeDrag.origins[nodeDrag.nodeId];
+        if (anchorNode && anchorOrig && (anchorNode.x !== anchorOrig.x || anchorNode.y !== anchorOrig.y)) {
           store.pushSnapshotToUndo(gestureStartSnapshotRef.current);
         }
       }
@@ -412,19 +469,56 @@ export function Canvas({ presenting, onExitPresent }: Props) {
       (svgRef.current as Element | null)?.setPointerCapture?.(e.pointerId);
       setDraft({ fromId: id, fromPort: nearestPort(node, sc.x, sc.y), x: sc.x, y: sc.y });
     } else {
-      // Defer pointer capture until actual movement. This keeps a plain
-      // click flowing as a normal click on the node (so click → dblclick
-      // fire on the node, not on the captured SVG).
+      const currentSel = store.selection;
+      const isShift = e.shiftKey || e.ctrlKey || e.metaKey;
+      let targetIds: string[] = [];
+      let wasAlreadySelected = false;
+
+      if (currentSel?.type === 'multi' && currentSel.ids.includes(id)) {
+        wasAlreadySelected = true;
+        targetIds = [...currentSel.ids];
+      } else if (currentSel?.type === 'node' && currentSel.id === id) {
+        wasAlreadySelected = true;
+        targetIds = [id];
+      } else {
+        wasAlreadySelected = false;
+        if (isShift) {
+          if (currentSel?.type === 'multi') {
+            targetIds = currentSel.ids.includes(id) ? currentSel.ids : [...currentSel.ids, id];
+          } else if (currentSel?.type === 'node') {
+            targetIds = currentSel.id === id ? [id] : [currentSel.id, id];
+          } else {
+            targetIds = [id];
+          }
+        } else {
+          if (node.groupId) {
+            const groupNodes = nodes.filter(n => n.groupId === node.groupId);
+            targetIds = groupNodes.length > 1 ? groupNodes.map(n => n.id) : [id];
+          } else {
+            targetIds = [id];
+          }
+        }
+      }
+
+      const origins: Record<string, { x: number; y: number }> = {};
+      targetIds.forEach(tId => {
+        const n = nodes.find(item => item.id === tId);
+        if (n) origins[tId] = { x: n.x, y: n.y };
+      });
+
       pendingNodeDragRef.current = {
         pointerId: e.pointerId,
         nodeId: id,
         startClientX: e.clientX,
         startClientY: e.clientY,
         startX: sc.x, startY: sc.y,
-        originX: node.x, originY: node.y,
+        nodeIds: targetIds,
+        origins,
+        isShift,
+        wasAlreadySelected,
       };
     }
-  }, [presenting, nodes, toScene]);
+  }, [presenting, nodes, toScene, store]);
 
   const handlePortDragStart = useCallback((e: React.PointerEvent, fromId: string, port: PortDir) => {
     if (presenting) return;
@@ -497,6 +591,17 @@ export function Canvas({ presenting, onExitPresent }: Props) {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
         e.preventDefault();
         store.duplicateSelection();
+        return;
+      }
+
+      // Group / Ungroup shortcuts
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'g' || e.key === 'G')) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          store.ungroupSelection();
+        } else {
+          store.groupSelection();
+        }
         return;
       }
 
@@ -905,6 +1010,82 @@ export function Canvas({ presenting, onExitPresent }: Props) {
               </g>
             );
           })()}
+          {/* Multi-selection group bounding box & drag handle overlay */}
+          {!presenting && selection?.type === 'multi' && selection.ids.length > 0 && (() => {
+            const selectedNodes = nodes.filter(n => selection.ids.includes(n.id));
+            if (selectedNodes.length === 0) return null;
+
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            selectedNodes.forEach(n => {
+              if (n.x < minX) minX = n.x;
+              if (n.y < minY) minY = n.y;
+              if (n.x + n.w > maxX) maxX = n.x + n.w;
+              if (n.y + n.h > maxY) maxY = n.y + n.h;
+            });
+
+            const pad = 12;
+            const gx = minX - pad;
+            const gy = minY - pad;
+            const gw = (maxX - minX) + pad * 2;
+            const gh = (maxY - minY) + pad * 2;
+
+            const firstGroupId = selectedNodes[0]?.groupId;
+            const isGrouped = firstGroupId && selectedNodes.every(n => n.groupId === firstGroupId);
+
+            const handleGroupOverlayPointerDown = (e: React.PointerEvent) => {
+              if (tool === 'pan') return;
+              e.stopPropagation();
+              const sc = toScene(e.clientX, e.clientY);
+              const origins: Record<string, { x: number; y: number }> = {};
+              selection.ids.forEach(id => {
+                const n = nodes.find(item => item.id === id);
+                if (n) origins[id] = { x: n.x, y: n.y };
+              });
+
+              pendingNodeDragRef.current = {
+                pointerId: e.pointerId,
+                nodeId: selection.ids[0],
+                startClientX: e.clientX,
+                startClientY: e.clientY,
+                startX: sc.x,
+                startY: sc.y,
+                nodeIds: [...selection.ids],
+                origins,
+                isShift: e.shiftKey || e.ctrlKey || e.metaKey,
+                wasAlreadySelected: true,
+              };
+            };
+
+            return (
+              <g className="multi-selection-group-overlay">
+                <rect
+                  x={gx} y={gy} width={gw} height={gh} rx={10}
+                  fill="rgba(123, 159, 255, 0.05)"
+                  stroke="#7b9fff"
+                  strokeWidth={1.5 / zoom}
+                  strokeDasharray={`${6 / zoom} ${4 / zoom}`}
+                  style={{ cursor: tool === 'select' ? 'move' : 'inherit', pointerEvents: 'all' }}
+                  onPointerDown={handleGroupOverlayPointerDown}
+                />
+                <g transform={`translate(${gx}, ${gy - 24 / zoom})`} style={{ pointerEvents: 'all', cursor: 'move' }} onPointerDown={handleGroupOverlayPointerDown}>
+                  <rect
+                    x={0} y={0} width={Math.max(120, (isGrouped ? 130 : 120) / zoom)} height={20 / zoom} rx={4 / zoom}
+                    fill="#7b9fff"
+                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}
+                  />
+                  <text
+                    x={6 / zoom} y={14 / zoom}
+                    fill="#0c101c"
+                    fontSize={11 / zoom}
+                    fontWeight="bold"
+                    fontFamily="DM Sans, sans-serif"
+                  >
+                    {isGrouped ? `📦 Group (${selectedNodes.length})` : `🏷️ ${selectedNodes.length} Selected`}
+                  </text>
+                </g>
+              </g>
+            );
+          })()}
           {nodes.map(n => (
             <CanvasNode key={n.id} node={n}
                         active={lit.has(n.id)}
@@ -1142,6 +1323,40 @@ export function Canvas({ presenting, onExitPresent }: Props) {
             </div>
             <span className="context-menu-kbd">Ctrl+D</span>
           </button>
+
+          {selection && selection.type === 'multi' && selection.ids.length > 1 && (
+            <button
+              className="context-menu-item"
+              onClick={() => { store.groupSelection(); setContextMenu(null); }}
+            >
+              <div className="context-menu-item-left">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <span>Group Selection</span>
+              </div>
+              <span className="context-menu-kbd">Ctrl+G</span>
+            </button>
+          )}
+
+          {selection && (() => {
+            const selectedNodes = nodes.filter(n =>
+              selection.type === 'node' ? n.id === selection.id :
+              selection.type === 'multi' ? selection.ids.includes(n.id) : false
+            );
+            const isGrouped = selectedNodes.some(n => n.groupId);
+            if (!isGrouped) return null;
+            return (
+              <button
+                className="context-menu-item"
+                onClick={() => { store.ungroupSelection(); setContextMenu(null); }}
+              >
+                <div className="context-menu-item-left">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+                  <span>Ungroup Selection</span>
+                </div>
+                <span className="context-menu-kbd">Ctrl+Shift+G</span>
+              </button>
+            );
+          })()}
 
           <div className="context-menu-sep" />
 

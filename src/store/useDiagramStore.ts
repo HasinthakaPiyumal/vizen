@@ -45,8 +45,11 @@ interface DiagramState {
   // Node actions
   addNode: (type: string, x: number, y: number) => void;
   updateNode: (id: string, patch: Partial<DiagramNode>) => void;
+  updateNodesPos: (positions: { id: string; x: number; y: number }[]) => void;
   deleteNode: (id: string) => void;
   deleteNodes: (ids: string[]) => void;
+  groupSelection: () => void;
+  ungroupSelection: () => void;
 
   // Edge actions
   addEdge: (from: string, to: string, color: string) => void;
@@ -122,6 +125,41 @@ export const useDiagramStore = create<DiagramState>()(
 
       updateNode: (id, patch) => {
         set(s => ({ nodes: s.nodes.map(n => n.id === id ? { ...n, ...patch } : n) }));
+      },
+
+      updateNodesPos: (positions) => {
+        const posMap = new Map(positions.map(p => [p.id, p]));
+        set(s => ({
+          nodes: s.nodes.map(n => {
+            const p = posMap.get(n.id);
+            return p ? { ...n, x: p.x, y: p.y } : n;
+          })
+        }));
+      },
+
+      groupSelection: () => {
+        const { selection } = get();
+        if (!selection || selection.type !== 'multi' || selection.ids.length < 2) return;
+        get().pushToUndo();
+        const groupId = `group_${Date.now()}`;
+        const idSet = new Set(selection.ids);
+        set(s => ({
+          nodes: s.nodes.map(n => idSet.has(n.id) ? { ...n, groupId } : n)
+        }));
+      },
+
+      ungroupSelection: () => {
+        const { selection } = get();
+        if (!selection) return;
+        const targetIds = new Set(
+          selection.type === 'node' ? [selection.id] :
+          selection.type === 'multi' ? selection.ids : []
+        );
+        if (targetIds.size === 0) return;
+        get().pushToUndo();
+        set(s => ({
+          nodes: s.nodes.map(n => targetIds.has(n.id) ? { ...n, groupId: undefined } : n)
+        }));
       },
 
       deleteNode: (id) => {
@@ -429,12 +467,21 @@ export const useDiagramStore = create<DiagramState>()(
         let dupNodeCounter = 0;
         const idMap: Record<string, string> = {};
 
+        const groupMap: Record<string, string> = {};
         const newNodes = copiedNodes.map(node => {
           const newId = `${node.type}_${timestamp}_${++dupNodeCounter}`;
           idMap[node.id] = newId;
+          let newGroupId = node.groupId;
+          if (node.groupId) {
+            if (!groupMap[node.groupId]) {
+              groupMap[node.groupId] = `group_${timestamp}_${dupNodeCounter}`;
+            }
+            newGroupId = groupMap[node.groupId];
+          }
           return {
             ...node,
             id: newId,
+            groupId: newGroupId,
             x: node.x + 30,
             y: node.y + 30,
           };

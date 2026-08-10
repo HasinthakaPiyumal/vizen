@@ -22,6 +22,10 @@ const SHORTCUTS = [
   { keys: ['Double-click edge'], descs: ['Edit edge label'] },
   { keys: ['Drag node border'], descs: ['Draw a connection to another node'] },
   { keys: ['Click + drag canvas'], descs: ['Rectangle select (select mode)'] },
+  { keys: ['Shift + Click node'], descs: ['Add / remove node from selection'] },
+  { keys: ['Drag multi-selection'], descs: ['Move grouped nodes together'] },
+  { keys: ['Ctrl+G / Cmd+G'], descs: ['Group selected nodes'] },
+  { keys: ['Ctrl+Shift+G / Cmd+Shift+G'], descs: ['Ungroup selected nodes'] },
 ];
 
 function ShortcutsModal({ onClose }: { onClose: () => void }) {

@@ -13,6 +13,7 @@ export interface DiagramNode {
   accent: AccentKey;
   big?: boolean;
   extra?: string[];
+  groupId?: string;
 }
 
 export interface DiagramEdge {
