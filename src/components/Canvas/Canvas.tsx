@@ -145,15 +145,33 @@ export function Canvas({ presenting, onExitPresent }: Props) {
     const handler = (e: WheelEvent) => {
       e.preventDefault();
       const { zoom: z, pan: p, setZoom, setPan } = useDiagramStore.getState();
+      const rect = el.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
       if (e.ctrlKey || e.metaKey) {
-        const factor = e.deltaY > 0 ? 0.9 : 1.1;
-        const rect = el.getBoundingClientRect();
-        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-        const newZ = Math.max(0.15, Math.min(4, z * factor));
-        setZoom(newZ);
-        setPan({ x: mx - (mx - p.x) * (newZ / z), y: my - (my - p.y) * (newZ / z) });
+        let delta = e.deltaY;
+        if (e.deltaMode === 1) delta *= 16;
+        else if (e.deltaMode === 2) delta *= 800;
+
+        delta = Math.max(-120, Math.min(120, delta));
+        const zoomFactor = Math.pow(0.9985, delta);
+        const newZ = Math.max(0.15, Math.min(4, z * zoomFactor));
+
+        if (Math.abs(newZ - z) > 0.0001) {
+          setZoom(newZ);
+          setPan({
+            x: mx - (mx - p.x) * (newZ / z),
+            y: my - (my - p.y) * (newZ / z),
+          });
+        }
       } else {
-        setPan({ x: p.x - e.deltaX, y: p.y - e.deltaY });
+        let dx = e.deltaX;
+        let dy = e.deltaY;
+        if (e.deltaMode === 1) { dx *= 16; dy *= 16; }
+        else if (e.deltaMode === 2) { dx *= 800; dy *= 800; }
+
+        setPan({ x: p.x - dx, y: p.y - dy });
       }
     };
     el.addEventListener('wheel', handler, { passive: false });
@@ -605,6 +623,43 @@ export function Canvas({ presenting, onExitPresent }: Props) {
         return;
       }
 
+      // Zoom & Fit shortcuts (Ctrl + '+', Ctrl + '-', Ctrl + R, Ctrl + 0)
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '+' || e.key === '=') {
+          e.preventDefault();
+          const { zoom: z, pan: p, setZoom, setPan } = useDiagramStore.getState();
+          const el = wrapRef.current;
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            const mx = rect.width / 2, my = rect.height / 2;
+            const newZ = Math.min(4, z * 1.25);
+            setZoom(newZ);
+            setPan({ x: mx - (mx - p.x) * (newZ / z), y: my - (my - p.y) * (newZ / z) });
+          }
+          return;
+        }
+
+        if (e.key === '-' || e.key === '_') {
+          e.preventDefault();
+          const { zoom: z, pan: p, setZoom, setPan } = useDiagramStore.getState();
+          const el = wrapRef.current;
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            const mx = rect.width / 2, my = rect.height / 2;
+            const newZ = Math.max(0.15, z / 1.25);
+            setZoom(newZ);
+            setPan({ x: mx - (mx - p.x) * (newZ / z), y: my - (my - p.y) * (newZ / z) });
+          }
+          return;
+        }
+
+        if (e.key === 'r' || e.key === 'R' || e.key === '0') {
+          e.preventDefault();
+          fitView();
+          return;
+        }
+      }
+
       // Tool shortcuts
       if (e.key === 'v' || e.key === 'V') { store.setTool('select'); return; }
       if (e.key === 'h' || e.key === 'H') { store.setTool('pan');    return; }
@@ -620,7 +675,7 @@ export function Canvas({ presenting, onExitPresent }: Props) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [store]);
+  }, [store, fitView]);
 
   // ── Context menu click-away closer ──
   useEffect(() => {
