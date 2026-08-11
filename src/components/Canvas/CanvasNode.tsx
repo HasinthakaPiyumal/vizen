@@ -132,6 +132,59 @@ export function CanvasNode({
           return null;
         }
 
+        if (n.type === 'image' || n.imageUrl) {
+          const clipId = `clip-${n.id}`;
+          const rx = big ? 12 : 9;
+          const fitMode = n.imageFit === 'contain' ? 'xMidYMid meet' : n.imageFit === 'fill' ? 'none' : 'xMidYMid slice';
+          return (
+            <g>
+              <defs>
+                <clipPath id={clipId}>
+                  <rect x={n.x} y={n.y} width={n.w} height={n.h} rx={rx} ry={rx} />
+                </clipPath>
+              </defs>
+              <rect x={n.x} y={n.y} width={n.w} height={n.h} rx={rx} ry={rx} {...commonProps} />
+              {n.imageUrl ? (
+                <image
+                  href={n.imageUrl}
+                  x={n.x} y={n.y}
+                  width={n.w} height={n.h}
+                  clipPath={`url(#${clipId})`}
+                  preserveAspectRatio={fitMode}
+                  style={{ pointerEvents: 'none' }}
+                />
+              ) : (
+                <g style={{ pointerEvents: 'none' }}>
+                  <rect
+                    x={n.x + 4} y={n.y + 4}
+                    width={Math.max(0, n.w - 8)} height={Math.max(0, n.h - 8)}
+                    rx={Math.max(2, rx - 2)} fill="rgba(123, 159, 255, 0.06)"
+                    stroke="#7b9fff" strokeWidth={1} strokeDasharray="4 3"
+                  />
+                  <foreignObject x={n.x} y={n.y} width={n.w} height={n.h}>
+                    <div style={{
+                      width: '100%', height: '100%',
+                      display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center',
+                      color: '#7b9fff', gap: 4, padding: 8, boxSizing: 'border-box'
+                    }}>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                      </svg>
+                      <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.8, textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>
+                        Click to Upload
+                      </span>
+                    </div>
+                  </foreignObject>
+                </g>
+              )}
+              <rect x={n.x} y={n.y} width={n.w} height={n.h} rx={rx} ry={rx} fill="none" stroke={c.edge} strokeWidth={1.5} />
+            </g>
+          );
+        }
+
         return (
           <rect
             x={n.x}
@@ -153,9 +206,11 @@ export function CanvasNode({
           <div style={{
             width: n.w, height: n.h,
             display: 'flex', flexDirection: 'column',
-            justifyContent: 'center', alignItems: 'center',
+            justifyContent: (n.type === 'image' || n.imageUrl) ? 'flex-end' : 'center',
+            alignItems: 'center',
             paddingTop: big ? 10 : 0,
-            paddingLeft: 10, paddingRight: 10,
+            paddingLeft: 6, paddingRight: 6,
+            paddingBottom: (n.type === 'image' || n.imageUrl) ? 6 : 0,
             boxSizing: 'border-box',
             textAlign: 'center', overflow: 'hidden',
             pointerEvents: 'none',
@@ -166,9 +221,14 @@ export function CanvasNode({
                 fontFamily: 'DM Sans, sans-serif',
                 fontSize: big ? 12 : 11,
                 fontWeight: 800,
-                color: c.color,
+                color: (n.type === 'image' || n.imageUrl) ? '#ffffff' : c.color,
+                background: (n.type === 'image' || n.imageUrl) ? 'rgba(7, 9, 15, 0.72)' : 'transparent',
+                backdropFilter: (n.type === 'image' || n.imageUrl) ? 'blur(4px)' : 'none',
+                padding: (n.type === 'image' || n.imageUrl) ? '2px 8px' : 0,
+                borderRadius: (n.type === 'image' || n.imageUrl) ? 4 : 0,
                 lineHeight: 1.25,
                 wordBreak: 'break-word',
+                maxWidth: '90%',
               }}
               dangerouslySetInnerHTML={{ __html: n.labelHtml ?? n.label }}
             />

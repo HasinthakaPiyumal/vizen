@@ -958,4 +958,88 @@ body {
   line-height: 1.5;
 }
 
+/* ── Sidebar Upload Button ── */
+.sidebar-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px dashed var(--line-3);
+  border-radius: var(--r-3);
+  color: var(--accent-blue);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--dur-fast);
+}
+.sidebar-upload-btn:hover {
+  background: rgba(123, 159, 255, 0.08);
+  border-color: var(--accent-blue);
+  border-style: solid;
+  transform: translateY(-1px);
+}
+
+/* ── Inspector Image Controls ── */
+.insp-image-preview {
+  width: 100%;
+  height: 90px;
+  border-radius: var(--r-2);
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  background: var(--bg-void);
+  margin-bottom: 8px;
+}
+.insp-image-preview img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.insp-image-placeholder-box {
+  width: 100%;
+  height: 70px;
+  border-radius: var(--r-2);
+  border: 1px dashed var(--line-2);
+  background: var(--bg-void);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--fg-4);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.insp-fit-group {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-void);
+  padding: 2px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line-2);
+}
+.fit-btn {
+  background: transparent;
+  border: none;
+  color: var(--fg-4);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--r-1);
+  cursor: pointer;
+  transition: all var(--dur-fast);
+}
+.fit-btn:hover {
+  color: var(--fg-2);
+}
+.fit-btn.active {
+  background: var(--accent-blue);
+  color: #0c101c;
+}
+
 

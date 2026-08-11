@@ -14,6 +14,9 @@ export interface DiagramNode {
   big?: boolean;
   extra?: string[];
   groupId?: string;
+  imageUrl?: string;
+  imageFit?: 'cover' | 'contain' | 'fill';
+  imageAspectRatio?: number;
 }
 
 export interface DiagramEdge {

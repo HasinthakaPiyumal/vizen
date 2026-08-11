@@ -10,16 +10,16 @@ const eid = () => `edge_${Date.now()}_${++_edgeCounter}`;
 
 // Accent defaults per node type
 const TYPE_ACCENT: Record<string, string> = {
-  rect: 'neutral', circle: 'neutral', diamond: 'neutral', text: 'neutral',
+  rect: 'neutral', circle: 'neutral', diamond: 'neutral', text: 'neutral', image: 'blue',
   mamba: 'blue', transformer: 'blue', embedding: 'violet', dataset: 'mint', loss: 'coral',
 };
 const TYPE_COLORS: Record<string, string> = {
   mamba: '#7b9fff', transformer: '#7b9fff', embedding: '#a78bfa',
   dataset: '#34d399', loss: '#f87171', rect: '#94a3b8', circle: '#94a3b8',
-  diamond: '#94a3b8', text: '#94a3b8',
+  diamond: '#94a3b8', text: '#94a3b8', image: '#7b9fff',
 };
 const TYPE_SUBS: Record<string, string> = {
-  rect: 'rectangle', circle: 'ellipse', diamond: 'diamond', text: 'text node',
+  rect: 'rectangle', circle: 'ellipse', diamond: 'diamond', text: 'text node', image: 'image element',
   mamba: 'SSM Block', transformer: 'Attention', embedding: 'Latent', dataset: 'Data source', loss: 'Criterion',
 };
 
@@ -43,7 +43,7 @@ interface DiagramState {
   clipboard: ClipboardData | null;
 
   // Node actions
-  addNode: (type: string, x: number, y: number) => void;
+  addNode: (type: string, x: number, y: number, patch?: Partial<DiagramNode>) => void;
   updateNode: (id: string, patch: Partial<DiagramNode>) => void;
   updateNodesPos: (positions: { id: string; x: number; y: number }[]) => void;
   deleteNode: (id: string) => void;
@@ -111,14 +111,21 @@ export const useDiagramStore = create<DiagramState>()(
       future: [],
       clipboard: null,
 
-      addNode: (type, x, y) => {
+      addNode: (type, x, y, patch) => {
         get().pushToUndo();
         const id = uid(type);
         const accent = (TYPE_ACCENT[type] ?? 'blue') as DiagramNode['accent'];
+        const isImage = type === 'image';
         const node: DiagramNode = {
-          id, type, label: type.charAt(0).toUpperCase() + type.slice(1),
+          id, type,
+          label: isImage ? (patch?.label || 'Image') : (type.charAt(0).toUpperCase() + type.slice(1)),
           sub: TYPE_SUBS[type] ?? type,
-          x, y, w: 130, h: 56, accent,
+          x, y,
+          w: isImage ? (patch?.w || 180) : 130,
+          h: isImage ? (patch?.h || 120) : 56,
+          accent,
+          imageFit: isImage ? 'cover' : undefined,
+          ...patch,
         };
         set(s => ({ nodes: [...s.nodes, node], selection: { type: 'node', id } }));
       },

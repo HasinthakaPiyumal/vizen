@@ -94,6 +94,10 @@ function cleanSvgForExport(svgEl: SVGSVGElement, isPNG = false) {
   const hitAreas = svgEl.querySelectorAll('rect[fill="transparent"][stroke="none"]');
   hitAreas.forEach(el => el.remove());
 
+  // Remove multi-selection group overlays
+  const groupOverlays = svgEl.querySelectorAll('.multi-selection-group-overlay');
+  groupOverlays.forEach(el => el.remove());
+
   if (isPNG) {
     const particles = svgEl.querySelectorAll('.flow-particle');
     particles.forEach(p => p.remove());

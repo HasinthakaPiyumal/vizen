@@ -40,8 +40,10 @@ export const NEmbedding   = (p: IconProps) => <Ic {...p}><circle cx="6" cy="6" r
 export const NDataset     = (p: IconProps) => <Ic {...p}><ellipse cx="12" cy="5" rx="8" ry="2.5"/><path d="M4 5v6c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5V5"/><path d="M4 11v6c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-6"/></Ic>;
 export const NLoss        = (p: IconProps) => <Ic {...p}><path d="M3 21l4-8 4 4 6-12 4 8"/></Ic>;
 
+export const IcImage     = (p: IconProps) => <Ic {...p}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></Ic>;
+
 // Map type id → icon component
 export const NODE_ICON_MAP: Record<string, React.FC<IconProps>> = {
-  rect: IcSquare, circle: IcCircle, diamond: IcDiamond, text: IcText,
+  rect: IcSquare, circle: IcCircle, diamond: IcDiamond, text: IcText, image: IcImage,
   mamba: NMamba, transformer: NTransformer, embedding: NEmbedding, dataset: NDataset, loss: NLoss,
 };

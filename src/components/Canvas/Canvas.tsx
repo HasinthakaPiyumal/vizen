@@ -800,14 +800,55 @@ export function Canvas({ presenting, onExitPresent }: Props) {
     setEditingEdgeLabelId(null);
   }, [editingEdgeLabelId, store]);
 
-  // ── HTML5 drop ──
+  // ── HTML5 drop (supports both shape chip drops and direct image file drops) ──
   const onDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    const sc = toScene(e.clientX, e.clientY);
+
+    // 1) Handle dropped image files directly from OS file manager
+    const files = Array.from(e.dataTransfer.files || []);
+    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    if (imageFiles.length > 0) {
+      imageFiles.forEach((file, index) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const dataUrl = event.target?.result as string;
+          if (!dataUrl) return;
+          const img = new Image();
+          img.onload = () => {
+            let w = img.naturalWidth || 200;
+            let h = img.naturalHeight || 150;
+            const MAX_INITIAL_W = 220;
+            if (w > MAX_INITIAL_W) {
+              h = Math.round((MAX_INITIAL_W / w) * h);
+              w = MAX_INITIAL_W;
+            }
+            w = Math.max(80, w);
+            h = Math.max(60, h);
+
+            store.addNode('image', sc.x - w / 2 + index * 20, sc.y - h / 2 + index * 20, {
+              imageUrl: dataUrl,
+              w, h,
+              label: file.name.replace(/\.[^/.]+$/, '') || 'Image',
+              imageFit: 'cover',
+            });
+          };
+          img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+      });
+      return;
+    }
+
+    // 2) Handle dragged nodeType chips from Sidebar
     const type = e.dataTransfer.getData('nodeType');
     if (!type) return;
-    const sc = toScene(e.clientX, e.clientY);
-    store.addNode(type, sc.x - 65, sc.y - 28);
+    if (type === 'image') {
+      store.addNode('image', sc.x - 90, sc.y - 60, { w: 180, h: 120, label: 'Image', imageFit: 'cover' });
+    } else {
+      store.addNode(type, sc.x - 65, sc.y - 28);
+    }
   }, [toScene, store]);
 
   // ── Laser trail: animation loop (fading from tail, drawing to canvas) ──
